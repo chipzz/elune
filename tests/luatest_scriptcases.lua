@@ -1785,3 +1785,19 @@ end)
 --     assert(not ok, "expected 'nantest' call to fail")
 --     assert(string.find(err, "table index is NaN"), "expected 'nantest' call to fail because table index is a NaN")
 -- end)
+
+-- This test verifies that the 'getglobal' and 'setglobal' functions which are
+-- present in the reference client (observed on 12.1.5) read and write global
+-- variables.
+case("getglobal/setglobal: Read and write global variables", function()
+    -- luacheck: globals getglobal setglobal
+    assert(type(getglobal) == "function", "expected 'getglobal' to be a function")
+    assert(type(setglobal) == "function", "expected 'setglobal' to be a function")
+
+    setglobal("EluneTestGlobal", 42)
+    assert(_G.EluneTestGlobal == 42, "expected 'setglobal' to write a global variable")
+    assert(getglobal("EluneTestGlobal") == 42, "expected 'getglobal' to read a global variable")
+
+    setglobal("EluneTestGlobal", nil)
+    assert(_G.EluneTestGlobal == nil, "expected 'setglobal' to clear a global variable")
+end)
