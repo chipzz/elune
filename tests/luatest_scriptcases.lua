@@ -1785,3 +1785,13 @@ end)
 --     assert(not ok, "expected 'nantest' call to fail")
 --     assert(string.find(err, "table index is NaN"), "expected 'nantest' call to fail because table index is a NaN")
 -- end)
+
+-- This test verifies that passing nil to 'strjoin' raises a concatenation
+-- error rather than an argument error, as is the case in the reference client
+-- (observed on 12.1.5).
+case("strjoin: nil argument", function()
+    -- luacheck: globals strjoin
+    local ok, err = pcall(strjoin, ",", "a", nil)
+    assert(not ok, "expected 'strjoin' with a nil argument to raise an error")
+    assert(string.find(err, "attempt to concatenate", 1, true), "expected 'strjoin' to fail with a concatenation error")
+end)
