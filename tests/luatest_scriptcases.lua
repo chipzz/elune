@@ -1785,3 +1785,11 @@ end)
 --     assert(not ok, "expected 'nantest' call to fail")
 --     assert(string.find(err, "table index is NaN"), "expected 'nantest' call to fail because table index is a NaN")
 -- end)
+
+-- This test verifies that 'bit.mod' returns the reciprocal of the divisor
+-- when the divisor truncates to zero, as is the case in the reference client
+-- (observed on 12.1.5), rather than performing an integer division by zero.
+case("bit.mod: Divisor that truncates to zero", function()
+    assert(bit.mod(5, 0) == 1 / 0, "expected 'bit.mod(5, 0)' to return inf")
+    assert(bit.mod(5, 0.5) == 2, "expected 'bit.mod(5, 0.5)' to return 2")
+end)
