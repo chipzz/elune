@@ -1785,3 +1785,11 @@ end)
 --     assert(not ok, "expected 'nantest' call to fail")
 --     assert(string.find(err, "table index is NaN"), "expected 'nantest' call to fail because table index is a NaN")
 -- end)
+
+-- This test verifies that calling 'tostring' without an argument raises an
+-- error, as is the case in the reference client (observed on 12.1.5).
+case("tostring: Missing argument", function()
+    local ok, err = pcall(tostring)
+    assert(not ok, "expected 'tostring()' to raise an error")
+    assert(string.find(err, "value expected", 1, true), "expected 'tostring()' to fail with 'value expected'")
+end)
