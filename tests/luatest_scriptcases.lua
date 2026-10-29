@@ -1785,3 +1785,12 @@ end)
 --     assert(not ok, "expected 'nantest' call to fail")
 --     assert(string.find(err, "table index is NaN"), "expected 'nantest' call to fail because table index is a NaN")
 -- end)
+
+-- This test verifies that calling 'date' with a format that produces no output
+-- raises an error, as is the case in the reference client (observed on 12.1.5).
+case("date: Empty format", function()
+    -- luacheck: globals date
+    local ok, err = pcall(date, "")
+    assert(not ok, "expected 'date(\"\")' to raise an error")
+    assert(string.find(err, "'date' format too long", 1, true), "expected 'date(\"\")' to fail as format too long")
+end)
