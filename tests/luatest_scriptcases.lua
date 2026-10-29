@@ -1785,3 +1785,30 @@ end)
 --     assert(not ok, "expected 'nantest' call to fail")
 --     assert(string.find(err, "table index is NaN"), "expected 'nantest' call to fail because table index is a NaN")
 -- end)
+
+-- This test verifies that 'string.upper' and 'string.lower' case-map UTF-8
+-- encoded Latin-1 and Cyrillic letters in the same way as the reference client
+-- (observed on 12.1.5). The Latin-1 mapping is a flat offset of 0x20 between
+-- U+00C0..U+00DE and U+00E0..U+00FE, and so it also maps U+00D7 (×) to U+00F7
+-- (÷). Bytes that do not form valid UTF-8 are dropped from the result.
+case("string.upper/lower: UTF-8 case mapping", function()
+    assert(string.upper("\195\169t\195\169") == "\195\137T\195\137", "expected 'été' to uppercase to 'ÉTÉ'")
+    assert(
+        string.lower("\195\128\195\137\195\150") == "\195\160\195\169\195\182",
+        "expected 'ÀÉÖ' to lowercase to 'àéö'"
+    )
+    assert(string.upper("stra\195\159e") == "STRA\195\159E", "expected 'straße' to uppercase to 'STRAßE'")
+    assert(string.upper("\195\191") == "\195\191", "expected 'ÿ' to be unchanged when uppercased")
+
+    local lower = "\208\191\209\128\208\184\208\178\208\181\209\130"
+    local upper = "\208\159\208\160\208\152\208\146\208\149\208\162"
+    assert(string.upper(lower) == upper, "expected 'привет' to uppercase to 'ПРИВЕТ'")
+    assert(string.lower(upper) == lower, "expected 'ПРИВЕТ' to lowercase to 'привет'")
+    assert(string.lower("\208\129") == "\209\145", "expected 'Ё' to lowercase to 'ё'")
+    assert(string.upper("\209\145") == "\208\129", "expected 'ё' to uppercase to 'Ё'")
+
+    assert(string.lower("\195\151") == "\195\183", "expected '×' to lowercase to '÷'")
+    assert(string.upper("\195\183") == "\195\151", "expected '÷' to uppercase to '×'")
+
+    assert(string.lower("a\233b") == "ab", "expected invalid UTF-8 byte to be dropped")
+end)
