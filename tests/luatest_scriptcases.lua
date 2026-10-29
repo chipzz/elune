@@ -1785,3 +1785,11 @@ end)
 --     assert(not ok, "expected 'nantest' call to fail")
 --     assert(string.find(err, "table index is NaN"), "expected 'nantest' call to fail because table index is a NaN")
 -- end)
+
+-- This test verifies that a leading UTF-8 byte order mark is skipped when
+-- loading a chunk, as is the case in the reference client (observed on 12.1.5).
+case("loadstring: Leading UTF-8 byte order mark", function()
+    local func, err = loadstring("\239\187\191return 1")
+    assert(func, "expected chunk with a leading byte order mark to load: " .. tostring(err))
+    assert(func() == 1, "expected chunk with a leading byte order mark to return 1")
+end)
