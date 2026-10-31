@@ -3,7 +3,7 @@ include(FetchContent)
 FetchContent_Declare(
   acutest
   GIT_REPOSITORY "https://github.com/mity/acutest.git"
-  GIT_TAG "cce300734bfe5c3879b0449ac283a872633e615c"
+  GIT_TAG "31751b4089c93b46a9fd8a8183a695f772de66de"
   SOURCE_SUBDIR "None"
   FIND_PACKAGE_ARGS
 )
