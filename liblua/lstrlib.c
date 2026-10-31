@@ -1069,12 +1069,15 @@ static const luaL_Reg strlib_shared[] = {
     { "gfind", str_gfind },
     { "gmatch", str_gmatch },
     { "gsub", str_gsub },
+    { "join", str_join },
     { "len", str_len },
     { "lower", str_lower },
     { "match", str_match },
     { "rep", str_rep },
     { "reverse", str_reverse },
+    { "split", str_split },
     { "sub", str_sub },
+    { "trim", str_trim },
     { "upper", str_upper },
     /* clang-format off */
     { NULL, NULL },
@@ -1095,7 +1098,6 @@ static const luaL_Reg strlib_global[] = {
     { "strlenutf8", strlenutf8 },
     { "strsplit", str_split },
     { "strsplittable", str_splittable },
-    { "strtrim", str_trim },
     /* clang-format off */
     { NULL, NULL },
     /* clang-format on */

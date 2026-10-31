@@ -59,12 +59,8 @@ static const char script[] =
     "strrep = string.rep\n"
     "strrev = string.reverse\n"
     "strsub = string.sub\n"
+    "strtrim = string.trim\n"
     "strupper = string.upper\n"
-    "-------------------------------------------------------------------\n"
-    "string.trim = strtrim\n"
-    "string.split = strsplit\n"
-    "string.join = strjoin\n"
-    "-------------------------------------------------------------------\n"
     "\n";
 
 LUALIB_API int luaopen_compat (lua_State *L) {
