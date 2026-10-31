@@ -941,23 +941,88 @@ static int str_concat (lua_State *L) {
     return 1;
 }
 
+static int aux_trim (lua_State *L, int trim_start, int trim_end) {
+    size_t len;
+    size_t characters_len;
+    size_t start = 0;
+    size_t end;
+    const char *str = luaL_checklstring(L, 1, &len);
+    const char *characters = luaL_optlstring(L, 2, " \r\n\t", &characters_len);
+
+    end = len;
+
+    if (trim_start) {
+        while (start < end && memchr(characters, (unsigned char) str[start], characters_len)) {
+            ++start;
+        }
+    }
+
+    if (trim_end) {
+        while (end > start && memchr(characters, (unsigned char) str[end - 1], characters_len)) {
+            --end;
+        }
+    }
+
+    lua_pushlstring(L, str + start, end - start);
+    return 1;
+}
+
 static int str_trim (lua_State *L) {
-    size_t slen;
-    const char *str = luaL_checklstring(L, 1, &slen);
-    const char *delim = luaL_optstring(L, 2, " \r\n\t");
+    const int trim_start = 1;
+    const int trim_end = 1;
+    return aux_trim(L, trim_start, trim_end);
+}
 
-    const char *begin = str;
-    const char *end = str + slen;
+static int str_ltrim (lua_State *L) {
+    const int trim_start = 1;
+    const int trim_end = 0;
+    return aux_trim(L, trim_start, trim_end);
+}
 
-    while (begin < end && strchr(delim, *begin)) {
-        ++begin;
+static int str_rtrim (lua_State *L) {
+    const int trim_start = 0;
+    const int trim_end = 1;
+    return aux_trim(L, trim_start, trim_end);
+}
+
+static int str_contains (lua_State *L) {
+    size_t str_len;
+    size_t substring_len;
+    const char *str = luaL_checklstring(L, 1, &str_len);
+    const char *substring = luaL_checklstring(L, 2, &substring_len);
+    int contains = 0;
+
+    if (substring_len <= str_len) {
+        size_t i;
+        for (i = 0; i <= str_len - substring_len; ++i) {
+            if (memcmp(str + i, substring, substring_len) == 0) {
+                contains = 1;
+                break;
+            }
+        }
     }
 
-    while (end >= begin && strchr(delim, *end)) {
-        --end;
-    }
+    lua_pushboolean(L, contains);
+    return 1;
+}
 
-    lua_pushlstring(L, begin, end - begin + 1);
+static int str_endswith (lua_State *L) {
+    size_t str_len;
+    size_t suffix_len;
+    const char *str = luaL_checklstring(L, 1, &str_len);
+    const char *suffix = luaL_checklstring(L, 2, &suffix_len);
+
+    lua_pushboolean(L, suffix_len <= str_len && memcmp(str + str_len - suffix_len, suffix, suffix_len) == 0);
+    return 1;
+}
+
+static int str_startswith (lua_State *L) {
+    size_t str_len;
+    size_t prefix_len;
+    const char *str = luaL_checklstring(L, 1, &str_len);
+    const char *prefix = luaL_checklstring(L, 2, &prefix_len);
+
+    lua_pushboolean(L, prefix_len <= str_len && memcmp(str, prefix, prefix_len) == 0);
     return 1;
 }
 
@@ -1064,6 +1129,8 @@ static int strlenutf8 (lua_State *L) {
 static const luaL_Reg strlib_shared[] = {
     { "byte", str_byte },
     { "char", str_char },
+    { "contains", str_contains },
+    { "endswith", str_endswith },
     { "find", str_find },
     { "format", str_format },
     { "gfind", str_gfind },
@@ -1072,10 +1139,13 @@ static const luaL_Reg strlib_shared[] = {
     { "join", str_join },
     { "len", str_len },
     { "lower", str_lower },
+    { "ltrim", str_ltrim },
     { "match", str_match },
     { "rep", str_rep },
     { "reverse", str_reverse },
+    { "rtrim", str_rtrim },
     { "split", str_split },
+    { "startswith", str_startswith },
     { "sub", str_sub },
     { "trim", str_trim },
     { "upper", str_upper },

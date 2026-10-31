@@ -1034,6 +1034,43 @@ case("setfenv: Taint caller environment with C call", function()
     assert(issecure(), "expected to return from 'main' securely")
 end)
 
+case("string.ltrim: removes specified characters from the start", function()
+    assert(string.ltrim(" \t--value-- ", " \t-") == "value-- ")
+    assert(string.ltrim("value", "x") == "value")
+end)
+
+case("string.rtrim: removes specified characters from the end", function()
+    assert(string.rtrim(" --value-- \t", " \t-") == " --value")
+    assert(string.rtrim("value", "x") == "value")
+end)
+
+case("string.trim: removes specified characters from both ends", function()
+    assert(string.trim(" \t--value-- \t", " \t-") == "value")
+    assert(string.trim("value", "x") == "value")
+end)
+
+case("string.contains: searches for a literal substring", function()
+    assert(string.contains("a.b.c", "."))
+    assert(not string.contains("a.b.c", "%"))
+end)
+
+case("string.endswith: checks the suffix", function()
+    assert(string.endswith("hello/world", "world"))
+    assert(not string.endswith("hello/world", "World"))
+end)
+
+case("string.startswith: checks the prefix", function()
+    assert(string.startswith("hello/world", "hello"))
+    assert(not string.startswith("hello/world", "Hello"))
+end)
+
+case("string.trim: handles null bytes", function()
+    assert(string.trim("\000 alpha \000", "\000 ") == "alpha")
+    assert(string.ltrim("\000 alpha \000", "\000 ") == "alpha \000")
+    assert(string.rtrim("\000 alpha \000", "\000 ") == "\000 alpha")
+    assert(string.trim(" \000alpha\000 ", " ") == "\000alpha\000")
+end)
+
 case("string.join: validates the separator", function()
     local ok, err = pcall(string.join)
     assert(not ok)
