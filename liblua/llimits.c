@@ -34,3 +34,10 @@ int luai_numisnan (lua_Number value) {
 int luai_numiszero (lua_Number value) {
     return (luai_num2bits(value) & UINT64_C(0x7fffffffffffffff)) == 0;
 }
+
+lua_Number luai_numinfinity (void) {
+    const uint64_t bits = UINT64_C(0x7ff0000000000000);
+    lua_Number value;
+    memcpy(&value, &bits, sizeof(value));
+    return value;
+}

@@ -1211,6 +1211,10 @@ case("math.clamp: returns maximum when minimum exceeds it", function()
     assert(math.clamp(0, 100, 50) == 50)
 end)
 
+case("math.huge: equals positive infinity from division by zero", function()
+    assert(math.huge == 1 / 0, "expected 'math.huge' to be positive infinity")
+end)
+
 case("math.isfinite: rejects infinity and NaN", function()
     local nan = -math.sin(math.huge)
     assert(math.isfinite(1))

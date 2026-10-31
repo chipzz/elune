@@ -397,7 +397,8 @@ static void mathlib_openshared (lua_State *L) {
     luaL_setfuncs(L, mathlib_shared, 0);
     lua_pushnumber(L, PI);
     lua_setfield(L, -2, "pi");
-    lua_pushnumber(L, HUGE_VAL);
+    /* Avoid Windows SDK infinity macros being folded incorrectly under /fp:fast. */
+    lua_pushnumber(L, luai_numinfinity());
     lua_setfield(L, -2, "huge");
 }
 

@@ -60,6 +60,7 @@ LUAI_FUNC int luai_numisfinite (lua_Number value);
 LUAI_FUNC int luai_numisinf (lua_Number value);
 LUAI_FUNC int luai_numisnan (lua_Number value);
 LUAI_FUNC int luai_numiszero (lua_Number value);
+LUAI_FUNC lua_Number luai_numinfinity (void);
 
 /* Lua state synchronization */
 
