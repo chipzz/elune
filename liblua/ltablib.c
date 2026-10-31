@@ -110,7 +110,7 @@ static int table_indexof (lua_State *L) {
     luaL_checktype(L, 1, LUA_TTABLE);
 
     for (;;) {
-        lua_rawgeti(L, 1, index);
+        lua_rawgeti(L, 1, (int) index);
         if (lua_isnil(L, -1)) {
             lua_pop(L, 1);
             return 0;
