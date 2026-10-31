@@ -522,6 +522,10 @@ static const char *getS (lua_State *L, void *ud, size_t *size) {
 
 LUALIB_API int luaL_loadbuffer (lua_State *L, const char *buff, size_t size, const char *name) {
     LoadS ls;
+    if (size >= 3 && memcmp(buff, "\xEF\xBB\xBF", 3) == 0) {
+        buff += 3;
+        size -= 3;
+    }
     ls.s = buff;
     ls.size = size;
     return lua_load(L, getS, &ls, name);

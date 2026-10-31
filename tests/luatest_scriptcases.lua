@@ -1593,6 +1593,12 @@ case("loadstring: taints caller", function()
     assert(not issecure())
 end)
 
+case("loadstring: skips leading UTF-8 BOM", function()
+    local func, err = loadstring("\239\187\191return 1")
+    assert(func, err)
+    assert(func() == 1)
+end)
+
 -- This test verifies that loadstring_untainted does not taint the caller.
 case("loadstring_untainted: does not taint caller", function()
     assert(issecure())
