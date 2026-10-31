@@ -27,9 +27,7 @@ jobs:
             preset: macos
 
     steps:
-      - uses: actions/checkout@v3
-
-      - uses: seanmiddleditch/gha-setup-ninja@v3
+      - uses: actions/checkout@v7
 
       - uses: ilammy/msvc-dev-cmd@v1
         if: startsWith(matrix.config.os, 'windows')
@@ -59,7 +57,7 @@ jobs:
         run: cmake --build --preset ${{ matrix.config.preset }} --target package
 
       - name: Upload
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v7
         with:
           path: build/${{ matrix.config.preset }}/install/**/*
           name: ${{ matrix.config.name }}
