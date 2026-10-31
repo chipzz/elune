@@ -9,9 +9,15 @@
 #include "lauxlib.h"
 #include "lualib.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+
+#if DBL_MANT_DIG != 53 || DBL_MAX_EXP != 1024
+#error "math predicates require IEEE-754 binary64 numbers"
+#endif
 
 #undef PI
 #define PI (3.14159265358979323846)
@@ -19,6 +25,127 @@
 
 static int math_abs (lua_State *L) {
     lua_pushnumber(L, fabs(luaL_checknumber(L, 1)));
+    return 1;
+}
+
+static uint64_t aux_dtoi64 (lua_Number value) {
+    uint64_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+static int math_isfinite (lua_State *L) {
+    const uint64_t exponent = aux_dtoi64(luaL_checknumber(L, 1)) & UINT64_C(0x7ff0000000000000);
+    lua_pushboolean(L, exponent != UINT64_C(0x7ff0000000000000));
+    return 1;
+}
+
+static int math_isinf (lua_State *L) {
+    const uint64_t bits = aux_dtoi64(luaL_checknumber(L, 1));
+    const uint64_t exponent = bits & UINT64_C(0x7ff0000000000000);
+    const uint64_t mantissa = bits & UINT64_C(0x000fffffffffffff);
+    lua_pushboolean(L, exponent == UINT64_C(0x7ff0000000000000) && mantissa == 0);
+    return 1;
+}
+
+static int math_isnan (lua_State *L) {
+    const uint64_t bits = aux_dtoi64(luaL_checknumber(L, 1));
+    const uint64_t exponent = bits & UINT64_C(0x7ff0000000000000);
+    const uint64_t mantissa = bits & UINT64_C(0x000fffffffffffff);
+    lua_pushboolean(L, exponent == UINT64_C(0x7ff0000000000000) && mantissa != 0);
+    return 1;
+}
+
+static int math_clamp (lua_State *L) {
+    lua_Number value = luaL_checknumber(L, 1);
+    lua_Number minimum = luaL_checknumber(L, 2);
+    lua_Number maximum = luaL_checknumber(L, 3);
+
+    if (value < minimum) {
+        value = minimum;
+    } else if (value > maximum) {
+        value = maximum;
+    }
+
+    lua_pushnumber(L, value);
+    return 1;
+}
+
+static int math_lerp (lua_State *L) {
+    lua_Number startValue = luaL_checknumber(L, 1);
+    lua_Number endValue = luaL_checknumber(L, 2);
+    lua_Number amount = luaL_checknumber(L, 3);
+
+    lua_pushnumber(L, startValue + (endValue - startValue) * amount);
+    return 1;
+}
+
+static int math_normalize (lua_State *L) {
+    lua_Number value = luaL_checknumber(L, 1);
+    lua_Number minimum = luaL_checknumber(L, 2);
+    lua_Number maximum = luaL_checknumber(L, 3);
+
+    lua_pushnumber(L, (value - minimum) / (maximum - minimum));
+    return 1;
+}
+
+static int math_remap (lua_State *L) {
+    lua_Number value = luaL_checknumber(L, 1);
+    lua_Number sourceMinimum = luaL_checknumber(L, 2);
+    lua_Number sourceMaximum = luaL_checknumber(L, 3);
+    lua_Number destinationMinimum = luaL_checknumber(L, 4);
+    lua_Number destinationMaximum = luaL_checknumber(L, 5);
+    lua_Number amount = (value - sourceMinimum) / (sourceMaximum - sourceMinimum);
+
+    lua_pushnumber(L, destinationMinimum + (destinationMaximum - destinationMinimum) * amount);
+    return 1;
+}
+
+static int math_round (lua_State *L) {
+    lua_Number value = luaL_checknumber(L, 1);
+    lua_Number decimalPlaces = luaL_optnumber(L, 2, 0);
+    lua_Number scale = pow(10, decimalPlaces);
+
+    lua_pushnumber(L, round(value * scale) / scale);
+    return 1;
+}
+
+static int math_saturate (lua_State *L) {
+    lua_Number value = luaL_checknumber(L, 1);
+
+    if (value < 0) {
+        value = 0;
+    } else if (value > 1) {
+        value = 1;
+    }
+
+    lua_pushnumber(L, value);
+    return 1;
+}
+
+static int math_sign (lua_State *L) {
+    lua_Number value = luaL_checknumber(L, 1);
+
+    lua_pushnumber(L, (value > 0) - (value < 0));
+    return 1;
+}
+
+static int math_wrap (lua_State *L) {
+    lua_Number value = luaL_checknumber(L, 1);
+    lua_Number minimum = luaL_checknumber(L, 2);
+    lua_Number maximum = luaL_checknumber(L, 3);
+    lua_Number range = maximum - minimum;
+
+    if (range == 0) {
+        lua_pushnumber(L, minimum);
+    } else {
+        lua_Number wrapped = fmod(value - minimum, range);
+        if (wrapped < 0) {
+            wrapped += range;
+        }
+        lua_pushnumber(L, minimum + wrapped);
+    }
+
     return 1;
 }
 
@@ -231,6 +358,7 @@ static const luaL_Reg mathlib_shared[] = {
     { "atan2", math_atan2 },
     { "atan", math_atan },
     { "ceil", math_ceil },
+    { "clamp", math_clamp },
     { "cosh", math_cosh },
     { "cos", math_cos },
     { "deg", math_deg },
@@ -238,19 +366,29 @@ static const luaL_Reg mathlib_shared[] = {
     { "floor", math_floor },
     { "fmod", math_fmod },
     { "frexp", math_frexp },
+    { "isfinite", math_isfinite },
+    { "isinf", math_isinf },
+    { "isnan", math_isnan },
     { "ldexp", math_ldexp },
+    { "lerp", math_lerp },
     { "log10", math_log10 },
     { "log", math_log },
     { "max", math_max },
     { "min", math_min },
     { "modf", math_modf },
+    { "normalize", math_normalize },
     { "pow", math_pow },
     { "rad", math_rad },
+    { "remap", math_remap },
+    { "round", math_round },
+    { "saturate", math_saturate },
+    { "sign", math_sign },
     { "sinh", math_sinh },
     { "sin", math_sin },
     { "sqrt", math_sqrt },
     { "tanh", math_tanh },
     { "tan", math_tan },
+    { "wrap", math_wrap },
     /* clang-format off */
     { NULL, NULL },
     /* clang-format on */
