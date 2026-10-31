@@ -65,7 +65,40 @@ static int str_reverse (lua_State *L) {
     return 1;
 }
 
+#if defined(LUA_USE_UTF8_CASE)
+static int str_case (lua_State *L, utf8_int32_t (*convert)(utf8_int32_t)) {
+    const char *s = luaL_checkstring(L, 1);
+    size_t remaining = strlen(s);
+    luaL_Buffer b;
+    luaL_buffinit(L, &b);
+    while (remaining > 0) {
+        size_t size = utf8codepointcalcsize(s);
+        utf8_int32_t cp;
+        char encoded[4];
+
+        /* Discard malformed bytes without reading past the first NUL. */
+        if (size > remaining || utf8nvalid(s, size) != NULL) {
+            s++;
+            remaining--;
+            continue;
+        }
+
+        utf8codepoint(s, &cp);
+        s += size;
+        remaining -= size;
+        cp = convert(cp);
+        utf8catcodepoint(encoded, cp, sizeof(encoded));
+        luaL_addlstring(&b, encoded, utf8codepointsize(cp));
+    }
+    luaL_pushresult(&b);
+    return 1;
+}
+#endif
+
 static int str_lower (lua_State *L) {
+#if defined(LUA_USE_UTF8_CASE)
+    return str_case(L, utf8lwrcodepoint);
+#else
     size_t l;
     size_t i;
     luaL_Buffer b;
@@ -76,9 +109,13 @@ static int str_lower (lua_State *L) {
     }
     luaL_pushresult(&b);
     return 1;
+#endif
 }
 
 static int str_upper (lua_State *L) {
+#if defined(LUA_USE_UTF8_CASE)
+    return str_case(L, utf8uprcodepoint);
+#else
     size_t l;
     size_t i;
     luaL_Buffer b;
@@ -89,6 +126,7 @@ static int str_upper (lua_State *L) {
     }
     luaL_pushresult(&b);
     return 1;
+#endif
 }
 
 static int str_rep (lua_State *L) {

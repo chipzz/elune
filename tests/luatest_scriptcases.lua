@@ -1877,6 +1877,42 @@ case("date: returns calendar fields for an explicit UTC timestamp", function()
     assert(result.isdst == false, "expected UTC to have no daylight saving: " .. tostring(result.isdst))
 end)
 
+case("string.lower: converts ASCII letters to lowercase", function()
+    assert(string.lower("AbC") == "abc", "expected lowercase ASCII letters")
+end)
+
+case("string.lower: discards malformed UTF-8 bytes", function()
+    assert(string.lower("A\255B") == "ab", "expected malformed byte to be discarded")
+end)
+
+case("string.lower: discards truncated UTF-8 sequences", function()
+    assert(string.lower("A\195") == "a", "expected truncated sequence to be discarded")
+end)
+
+case("string.lower: stops at an embedded NUL", function()
+    assert(string.lower("A\0B") == "a", "expected conversion to stop at the first NUL")
+end)
+
+case("string.upper: converts ASCII letters to uppercase", function()
+    assert(string.upper("AbC") == "ABC", "expected uppercase ASCII letters")
+end)
+
+case("string.upper: discards malformed UTF-8 bytes", function()
+    assert(string.upper("a\255b") == "AB", "expected malformed byte to be discarded")
+end)
+
+case("string.upper: discards truncated UTF-8 sequences", function()
+    assert(string.upper("a\195") == "A", "expected truncated sequence to be discarded")
+end)
+
+case("string.upper: stops at an embedded NUL", function()
+    assert(string.upper("a\0b") == "A", "expected conversion to stop at the first NUL")
+end)
+
+case("string.upper: leaves dotless i unchanged", function()
+    assert(string.upper("\196\177") == "\196\177", "expected dotless i to remain unchanged")
+end)
+
 case("bit.mod: zero divisor returns infinity", function()
     assert(bit.mod(5, 0) == math.huge, "expected 'bit.mod(5, 0)' to return infinity")
 end)

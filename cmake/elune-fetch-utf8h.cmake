@@ -3,7 +3,7 @@ include(FetchContent)
 FetchContent_Declare(
   utf8h
   GIT_REPOSITORY "https://github.com/sheredom/utf8.h.git"
-  GIT_TAG "ce48f0eda6cac8f365837edaf8298ad5c03f7f2e"
+  GIT_TAG "8a37b279054b0f573e461a1c478db27cb42265cb"
   FIND_PACKAGE_ARGS
 )
 

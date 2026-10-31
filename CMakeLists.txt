@@ -40,6 +40,7 @@ set(LUA_ASSERT_CONFIGS "Debug" CACHE STRING "List of build configurations where 
 set(LUA_APICHECK_CONFIGS "Debug" CACHE STRING "List of build configurations where Lua API checks are enabled")
 
 option(LUA_USE_FAST_MATH "Enable fast floating point optimizations?" ON)
+option(LUA_USE_UTF8_CASE "Use UTF-8 case conversion for string.lower and string.upper?" ON)
 cmake_dependent_option(LUA_USE_CXX_LINKAGE "Build the Lua interface with C++ linkage?" ON "BUILD_CXX" OFF)
 cmake_dependent_option(LUA_USE_CXX_EXCEPTIONS "Allow the use of C++ exceptions for error handling?" ON "BUILD_CXX" OFF)
 cmake_dependent_option(LUA_USE_READLINE "Allow linking to 'libreadline' for the interpreter and debug library?" ON "TARGET readline::readline" OFF)
