@@ -85,6 +85,67 @@ static void test_protecttaint_tainted_error (void) {
     lua_close(L);
 }
 
+static int f_freezetable (lua_State *L) {
+    lua_freezetable(L, 1);
+    return 0;
+}
+
+static void test_freezetable_secure_table (void) {
+    lua_State *L = luatest_newstate();
+    lua_newtable(L);
+    TEST_CHECK((!lua_isfrozen(L, 1)));
+    lua_freezetable(L, 1);
+    TEST_CHECK((lua_isfrozen(L, 1)));
+    lua_close(L);
+}
+
+static void test_freezetable_secure_caller (void) {
+    lua_State *L = luatest_newstate();
+    lua_setnewobjecttaint(L, "AddonA");
+    lua_newtable(L);
+    lua_setnewobjecttaint(L, NULL);
+    lua_freezetable(L, 1);
+    TEST_CHECK((lua_isfrozen(L, 1)));
+    lua_close(L);
+}
+
+static void test_freezetable_same_owner (void) {
+    lua_State *L = luatest_newstate();
+    lua_setnewobjecttaint(L, "AddonA");
+    lua_newtable(L);
+    lua_setnewobjecttaint(L, NULL);
+    lua_setstacktaint(L, "AddonA");
+    lua_freezetable(L, 1);
+    TEST_CHECK((lua_isfrozen(L, 1)));
+    lua_close(L);
+}
+
+static void test_freezetable_tainted_caller_secure_table (void) {
+    lua_State *L = luatest_newstate();
+    lua_newtable(L);
+    lua_pushcfunction(L, &f_freezetable);
+    lua_pushvalue(L, 1);
+    lua_setstacktaint(L, "AddonA");
+    const int status = lua_pcall(L, 1, 0, 0);
+    TEST_CHECK((status != 0));
+    TEST_CHECK((!lua_isfrozen(L, 1)));
+    lua_close(L);
+}
+
+static void test_freezetable_different_owner (void) {
+    lua_State *L = luatest_newstate();
+    lua_setnewobjecttaint(L, "AddonA");
+    lua_newtable(L);
+    lua_setnewobjecttaint(L, NULL);
+    lua_pushcfunction(L, &f_freezetable);
+    lua_pushvalue(L, 1);
+    lua_setstacktaint(L, "AddonB");
+    const int status = lua_pcall(L, 1, 0, 0);
+    TEST_CHECK((status != 0));
+    TEST_CHECK((!lua_isfrozen(L, 1)));
+    lua_close(L);
+}
+
 /*
 ** Scripted Test Cases
 */
@@ -154,6 +215,11 @@ static void test_profilingscriptcases (void) {
 */
 
 TEST_LIST = {
+    { "lua_freezetable: secure table can be frozen", test_freezetable_secure_table },
+    { "lua_freezetable: secure caller can freeze addon table", test_freezetable_secure_caller },
+    { "lua_freezetable: addon can freeze its own table", test_freezetable_same_owner },
+    { "lua_freezetable: tainted caller cannot freeze secure table", test_freezetable_tainted_caller_secure_table },
+    { "lua_freezetable: addon cannot freeze another addon's table", test_freezetable_different_owner },
     { "lua_protecttaint: stack remains secure after call", test_protecttaint_secure_normal },
     { "lua_protecttaint: stack remains tainted after call", test_protecttaint_tainted_normal },
     { "lua_protecttaint: stack restored to secure on error", test_protecttaint_secure_error },

@@ -15,6 +15,7 @@
 -- luacheck: globals bit.mod
 -- luacheck: globals date
 -- luacheck: globals dumpobject mapvalues Mixin CreateFromMixins securecallmethod
+-- luacheck: globals table.freeze table.isfrozen table.count table.wipe
 
 local case = _G.case
     or function(name, func)
@@ -1049,6 +1050,177 @@ case("table.create: returns an empty table", function()
     local created = table.create(3, 2)
     assert(type(created) == "table")
     assert(next(created) == nil)
+end)
+
+case("table.freeze: returns the supplied table and preserves reads", function()
+    local values = { "alpha", named = "beta" }
+    assert(table.isfrozen(values) == false)
+    assert(table.freeze(values) == values)
+    assert(table.isfrozen(values) == true)
+    assert(table.freeze(values) == values)
+    assert(table.isfrozen(values) == true)
+    assert(values[1] == "alpha" and values.named == "beta")
+    assert(rawget(values, "named") == "beta")
+    assert(#values == 1)
+    assert(table.count(values) == 2)
+end)
+
+case("table.freeze: rejects ordinary writes without changing contents", function()
+    local values = table.freeze({ "alpha", named = "beta" })
+    local writes = {
+        function() values[1] = "changed" end,
+        function() values.named = "changed" end,
+        function() values[2] = "new" end,
+        function() values.missing = "new" end,
+        function() values.named = nil end,
+        function() values.named = "beta" end,
+        function() values.missing = nil end,
+    }
+
+    for index, write in ipairs(writes) do
+        assert(not pcall(write), "expected frozen write " .. index .. " to fail")
+        assert(values[1] == "alpha" and values.named == "beta")
+        assert(values[2] == nil and values.missing == nil)
+        assert(table.count(values) == 2)
+    end
+end)
+
+case("table.freeze: rejects raw writes even with __newindex", function()
+    local calls = 0
+    local values = setmetatable({ "alpha", named = "beta" }, {
+        __newindex = function() calls = calls + 1 end,
+    })
+    table.freeze(values)
+
+    for _, key in ipairs({ 1, 2, "named", "missing" }) do
+        assert(not pcall(rawset, values, key, "changed"))
+        assert(not pcall(rawset, values, key, nil))
+    end
+
+    assert(calls == 0)
+    assert(values[1] == "alpha" and values.named == "beta")
+    assert(values[2] == nil and values.missing == nil)
+    assert(table.count(values) == 2)
+end)
+
+case("table.freeze: forwards existing and missing keys to __newindex function", function()
+    local calls = {}
+    local values = setmetatable({ "alpha", named = "beta" }, {
+        __newindex = function(object, key, value)
+            calls[#calls + 1] = { object = object, key = key, value = value }
+        end,
+    })
+    table.freeze(values)
+    values[1] = "changed"
+    values.named = "changed"
+    values.missing = "new"
+    values.named = nil
+
+    assert(#calls == 4)
+    assert(calls[1].object == values and calls[1].key == 1 and calls[1].value == "changed")
+    assert(calls[2].object == values and calls[2].key == "named" and calls[2].value == "changed")
+    assert(calls[3].object == values and calls[3].key == "missing" and calls[3].value == "new")
+    assert(calls[4].object == values and calls[4].key == "named" and calls[4].value == nil)
+    assert(values[1] == "alpha" and values.named == "beta")
+    assert(rawget(values, "missing") == nil)
+end)
+
+case("table.freeze: forwards existing and missing keys to __newindex table", function()
+    local store = { named = "old" }
+    local values = setmetatable({ "alpha", named = "beta" }, { __newindex = store })
+    table.freeze(values)
+    values[1] = "changed"
+    values.named = "changed"
+    values.missing = "new"
+
+    assert(store[1] == "changed" and store.named == "changed" and store.missing == "new")
+    values.named = nil
+    assert(store.named == nil)
+    assert(values[1] == "alpha" and values.named == "beta")
+    assert(rawget(values, "missing") == nil)
+end)
+
+case("table.freeze: prevents metatable replacement and removal", function()
+    local metatable = {}
+    local values = table.freeze(setmetatable({}, metatable))
+    assert(getmetatable(values) == metatable)
+    assert(not pcall(setmetatable, values, {}))
+    assert(not pcall(setmetatable, values, nil))
+    local ok, result = pcall(setmetatable, values, metatable)
+    assert(not ok)
+    assert(string.find(result, "attempted to replace metatable of a frozen table", 1, true))
+    assert(getmetatable(values) == metatable)
+
+    local plain = table.freeze({})
+    assert(not pcall(setmetatable, plain, {}))
+    assert(getmetatable(plain) == nil)
+end)
+
+case("table.freeze: weak values can still be collected", function()
+    local values = setmetatable({}, { __mode = "v" })
+    do
+        local arrayValue, namedValue = {}, {}
+        values[1], values.named = arrayValue, namedValue
+        table.freeze(values)
+        assert(values[1] == arrayValue and values.named == namedValue)
+    end
+
+    collectgarbage("collect")
+    collectgarbage("collect")
+    assert(table.isfrozen(values) == true)
+    assert(values[1] == nil and values.named == nil)
+end)
+
+case("table.freeze: forwards writes through __newindex added after freezing", function()
+    local store = {}
+    local metatable = {}
+    local values = table.freeze(setmetatable({ named = "original" }, metatable))
+    metatable.__newindex = store
+    values.named = "changed"
+    assert(store.named == "changed")
+    assert(values.named == "original")
+end)
+
+case("table.freeze: wipe permits empty tables and rejects populated tables without forwarding", function()
+    for _, populated in ipairs({ false, true }) do
+        for _, forwarding in ipairs({ false, true }) do
+            local calls = 0
+            local values = populated and { "alpha", named = "beta" } or {}
+            if forwarding then
+                setmetatable(values, {
+                    __newindex = function() calls = calls + 1 end,
+                })
+            end
+            table.freeze(values)
+            local ok, result = pcall(table.wipe, values)
+            assert(ok == not populated)
+            if populated then
+                assert(string.find(result, "attempted to perform indexed assignment on a frozen table", 1, true))
+                assert(values[1] == "alpha" and values.named == "beta")
+                assert(table.count(values) == 2)
+            else
+                assert(result == values)
+                assert(next(values) == nil)
+            end
+            assert(calls == 0)
+            assert(table.isfrozen(values) == true)
+        end
+    end
+end)
+
+case("table.freeze: insert rejects empty and populated frozen tables", function()
+    for _, populated in ipairs({ false, true }) do
+        local values = table.freeze(populated and { "beta", "alpha" } or {})
+        local ok, result = pcall(table.insert, values, "new")
+        assert(not ok)
+        assert(string.find(result, "attempted to perform indexed assignment on a frozen table", 1, true))
+        if populated then
+            assert(values[1] == "beta" and values[2] == "alpha" and #values == 2)
+        else
+            assert(next(values) == nil)
+        end
+        assert(table.isfrozen(values) == true)
+    end
 end)
 
 case("table.indexof: returns the first matching array index", function()

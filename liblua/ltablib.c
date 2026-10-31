@@ -105,6 +105,19 @@ static int table_create (lua_State *L) {
     return 1;
 }
 
+static int table_freeze (lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_settop(L, 1);
+    lua_freezetable(L, 1);
+    return 1;
+}
+
+static int table_isfrozen (lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_pushboolean(L, lua_isfrozen(L, 1));
+    return 1;
+}
+
 static int table_indexof (lua_State *L) {
     lua_Integer index = 1;
     luaL_checktype(L, 1, LUA_TTABLE);
@@ -433,7 +446,7 @@ static int table_wipe (lua_State *L) {
         lua_pop(L, 1);
         lua_pushvalue(L, -1);
         lua_pushnil(L);
-        lua_settable(L, 1);
+        lua_rawset(L, 1);
     }
 
     return 1;
@@ -485,10 +498,12 @@ static const luaL_Reg tablib_shared[] = {
     { "create", table_create },
     { "foreach", table_foreach },
     { "foreachi", table_foreachi },
+    { "freeze", table_freeze },
     { "getn", table_getn },
     { "getcountinfo", table_getcountinfo },
     { "indexof", table_indexof },
     { "isempty", table_isempty },
+    { "isfrozen", table_isfrozen },
     { "keys", table_keys },
     { "maxn", table_maxn },
     { "insert", table_insert },

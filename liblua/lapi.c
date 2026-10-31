@@ -682,6 +682,9 @@ LUA_API int lua_setmetatable (lua_State *L, int objindex) {
     }
     switch (ttype(obj)) {
         case LUA_TTABLE: {
+            if (hvalue(obj)->frozen) {
+                luaG_runerror(L, "attempted to replace metatable of a frozen table");
+            }
             hvalue(obj)->metatable = mt;
             if (mt)
                 luaC_objbarriert(L, hvalue(obj), mt);
@@ -1063,6 +1066,31 @@ LUA_API void lua_copy (lua_State *L, int fromidx, int toidx) {
     api_checkvalidindex(L, fr);
     moveto(L, fr, toidx);
     lua_unlock(L);
+}
+
+LUA_API void lua_freezetable (lua_State *L, int idx) {
+    StkId o;
+    Table *t;
+    lua_lock(L);
+    o = index2adr(L, idx);
+    api_check(L, ttistable(o));
+    t = hvalue(o);
+    if (L->stacktaint != NULL && L->stacktaint != t->taint) {
+        luaG_runerror(L, "attempted to freeze a table owned by another addon");
+    }
+    t->frozen = 1;
+    lua_unlock(L);
+}
+
+LUA_API int lua_isfrozen (lua_State *L, int idx) {
+    StkId o;
+    int frozen;
+    lua_lock(L);
+    o = index2adr(L, idx);
+    api_check(L, ttistable(o));
+    frozen = hvalue(o)->frozen;
+    lua_unlock(L);
+    return frozen;
 }
 
 LUA_API size_t lua_objsize (lua_State *L, int idx) {

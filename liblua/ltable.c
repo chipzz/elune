@@ -348,6 +348,7 @@ Table *luaH_new (lua_State *L, int narray, int nhash) {
     luaC_link(L, obj2gco(t), LUA_TTABLE);
     t->metatable = NULL;
     t->flags = cast_byte(~0);
+    t->frozen = 0;
     /* temporary values (kept only if some malloc fails) */
     t->array = NULL;
     t->sizearray = 0;
@@ -484,7 +485,14 @@ const TValue *luaH_get (Table *t, const TValue *key) {
     }
 }
 
+void luaH_checkmutable (lua_State *L, const Table *t) {
+    if (t->frozen) {
+        luaG_runerror(L, "attempted to perform indexed assignment on a frozen table");
+    }
+}
+
 TValue *luaH_set (lua_State *L, Table *t, const TValue *key) {
+    luaH_checkmutable(L, t);
     const TValue *p = luaH_get(t, key);
     t->flags = 0;
     if (p != luaO_nilobject) {
@@ -500,6 +508,7 @@ TValue *luaH_set (lua_State *L, Table *t, const TValue *key) {
 }
 
 TValue *luaH_setnum (lua_State *L, Table *t, int key) {
+    luaH_checkmutable(L, t);
     const TValue *p = luaH_getnum(t, key);
     if (p != luaO_nilobject) {
         return cast(TValue *, p);
@@ -511,6 +520,7 @@ TValue *luaH_setnum (lua_State *L, Table *t, int key) {
 }
 
 TValue *luaH_setstr (lua_State *L, Table *t, TString *key) {
+    luaH_checkmutable(L, t);
     const TValue *p = luaH_getstr(t, key);
     if (p != luaO_nilobject) {
         return cast(TValue *, p);
