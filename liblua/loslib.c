@@ -162,6 +162,10 @@ static int os_date (lua_State *L) {
     } else {
         char cc[3];
         luaL_Buffer b;
+        /* Match the client error for empty output, even after '!'. */
+        if (*s == '\0') {
+            return luaL_error(L, "'date' format too long");
+        }
         cc[0] = '%';
         cc[2] = '\0';
         luaL_buffinit(L, &b);

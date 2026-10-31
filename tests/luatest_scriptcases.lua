@@ -13,6 +13,7 @@
 -- luacheck: globals geterrorhandler seterrorhandler
 -- luacheck: globals strsplit strsplittable secureexecuterange
 -- luacheck: globals bit.mod
+-- luacheck: globals date
 
 local case = _G.case
     or function(name, func)
@@ -1838,6 +1839,42 @@ case("pcallwithenv: calls erroring function and returns error", function()
     assert(res.n == 2, "expected 'pcallwithenv' to return two values")
     assert(not res[1], "expected 'pcallwithenv' to execute unsuccessfully")
     assert(string.find(res[2], "test error"), "expected 'pcallwithenv' to return an error string")
+end)
+
+case("date: empty format raises a format-length error", function()
+    local ok, err = pcall(date, "")
+    assert(not ok, "expected 'date(\"\")' to raise an error")
+    assert(string.find(err, "'date' format too long", 1, true), tostring(err))
+end)
+
+case("date: UTC prefix alone raises a format-length error", function()
+    local ok, err = pcall(date, "!")
+    assert(not ok, "expected 'date(\"!\")' to raise an error")
+    assert(string.find(err, "'date' format too long", 1, true), tostring(err))
+end)
+
+case("date: literal text and escaped percent do not depend on the clock", function()
+    local result = date("literal %% text")
+    assert(result == "literal % text", "unexpected literal-format result: " .. tostring(result))
+end)
+
+case("date: formats an explicit UTC timestamp on leap day", function()
+    local result = date("!%Y-%m-%d %H:%M:%S", 951827696)
+    assert(result == "2000-02-29 12:34:56", "unexpected UTC-format result: " .. tostring(result))
+end)
+
+case("date: returns calendar fields for an explicit UTC timestamp", function()
+    local result = date("!*t", 951827696)
+    assert(type(result) == "table", "expected 'date(\"!*t\", ...)' to return a table")
+    assert(result.year == 2000, "unexpected year: " .. tostring(result.year))
+    assert(result.month == 2, "unexpected month: " .. tostring(result.month))
+    assert(result.day == 29, "unexpected day: " .. tostring(result.day))
+    assert(result.hour == 12, "unexpected hour: " .. tostring(result.hour))
+    assert(result.min == 34, "unexpected minute: " .. tostring(result.min))
+    assert(result.sec == 56, "unexpected second: " .. tostring(result.sec))
+    assert(result.wday == 3, "expected Tuesday to have weekday index 3: " .. tostring(result.wday))
+    assert(result.yday == 60, "expected leap day to have year-day index 60: " .. tostring(result.yday))
+    assert(result.isdst == false, "expected UTC to have no daylight saving: " .. tostring(result.isdst))
 end)
 
 case("bit.mod: zero divisor returns infinity", function()
