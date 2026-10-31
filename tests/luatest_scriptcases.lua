@@ -12,6 +12,7 @@
 -- luacheck: globals loadstring_untainted securecall securecallfunction
 -- luacheck: globals geterrorhandler seterrorhandler
 -- luacheck: globals strsplit strsplittable secureexecuterange
+-- luacheck: globals bit.mod
 
 local case = _G.case
     or function(name, func)
@@ -1761,6 +1762,27 @@ case("pcallwithenv: calls erroring function and returns error", function()
     assert(not res[1], "expected 'pcallwithenv' to execute unsuccessfully")
     assert(string.find(res[2], "test error"), "expected 'pcallwithenv' to return an error string")
 end)
+
+case("bit.mod: zero divisor returns infinity", function()
+    assert(bit.mod(5, 0) == math.huge, "expected 'bit.mod(5, 0)' to return infinity")
+end)
+
+case("bit.mod: fractional divisors that truncate to zero return their reciprocal", function()
+    assert(bit.mod(5, 0.5) == 2, "expected 'bit.mod(5, 0.5)' to return 2")
+    assert(bit.mod(5, -0.5) == -2, "expected 'bit.mod(5, -0.5)' to return -2")
+    assert(bit.mod(5, 0.9) == 1 / 0.9, "expected 'bit.mod(5, 0.9)' to return its divisor's reciprocal")
+end)
+
+case("bit.mod: nonzero integer divisor returns remainder", function()
+    assert(bit.mod(17, 5) == 2, "expected 'bit.mod(17, 5)' to return 2")
+end)
+
+-- Elune-only: this can crash in-game with a divide-by-zero exception.
+if _G.case then
+    case("bit.mod: signed division overflow safely returns zero", function()
+        assert(bit.mod(-2147483648, -1) == 0, "expected 'bit.mod(-2147483648, -1)' to return 0")
+    end)
+end
 
 -- This test verifies recent changes made in 10.1 that allow 'debuglocals'
 -- to be called anywhere outside of a global error handler (yay!).

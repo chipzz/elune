@@ -80,8 +80,16 @@ static int bit_arshift (lua_State *L) {
 
 static int bit_mod (lua_State *L) {
     int32_t result = bit_checksigned(L, 1);
-    result %= bit_checksigned(L, 2);
-    lua_pushinteger(L, (lua_Integer) result);
+    int32_t divisor = bit_checksigned(L, 2);
+
+    if (divisor == 0) {
+        lua_pushnumber(L, 1.0 / lua_tonumber(L, 2));
+    } else if (divisor == -1) {
+        lua_pushinteger(L, 0);
+    } else {
+        lua_pushinteger(L, (lua_Integer) (result % divisor));
+    }
+
     return 1;
 }
 
