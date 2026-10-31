@@ -6,10 +6,16 @@
 
 #include "lua.h"
 
+#include <float.h>
 #include <limits.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+
+#if FLT_RADIX != 2 || DBL_MANT_DIG != 53 || DBL_MAX_EXP != 1024
+#error "numeric classification requires IEEE-754 binary64 numbers"
+#endif
 
 /* Chars used as small naturals (so that `char' is reserved for characters). */
 typedef unsigned char lu_byte;
@@ -53,7 +59,31 @@ typedef uint_least32_t Instruction;
 #define luai_numeq(a, b) ((a) == (b))
 #define luai_numlt(a, b) ((a) < (b))
 #define luai_numle(a, b) ((a) <= (b))
-#define luai_numisnan(a) (fpclassify(a) == FP_NAN)
+
+static inline uint64_t luai_num2bits (lua_Number value) {
+    uint64_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+static inline int luai_numisfinite (lua_Number value) {
+    return (luai_num2bits(value) & UINT64_C(0x7ff0000000000000)) != UINT64_C(0x7ff0000000000000);
+}
+
+static inline int luai_numisinf (lua_Number value) {
+    const uint64_t bits = luai_num2bits(value);
+    return (bits & UINT64_C(0x7fffffffffffffff)) == UINT64_C(0x7ff0000000000000);
+}
+
+static inline int luai_numisnan (lua_Number value) {
+    const uint64_t bits = luai_num2bits(value);
+    return (bits & UINT64_C(0x7ff0000000000000)) == UINT64_C(0x7ff0000000000000) &&
+        (bits & UINT64_C(0x000fffffffffffff)) != 0;
+}
+
+static inline int luai_numiszero (lua_Number value) {
+    return (luai_num2bits(value) & UINT64_C(0x7fffffffffffffff)) == 0;
+}
 
 /* Lua state synchronization */
 

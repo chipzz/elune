@@ -325,16 +325,13 @@ void luaV_concat (lua_State *L, int total, int last) {
 
 static void checkfp (lua_State *L, int mask, lua_Number nb, lua_Number nc) {
     if (L->exceptmask & mask) {
-        int fb = fpclassify(nb);
-        int fc = fpclassify(nc);
-
-        if (fc == FP_ZERO) {
+        if (luai_numiszero(nc)) {
             luaG_runerror(L, "Division by zero");
-        } else if (fb == FP_NAN) {
+        } else if (luai_numisnan(nb)) {
             luaG_runerror(L, "Numerator is not a number");
-        } else if (fc == FP_NAN) {
+        } else if (luai_numisnan(nc)) {
             luaG_runerror(L, "Denominator is not a number");
-        } else if (fb == FP_INFINITE && fc == FP_INFINITE) {
+        } else if (luai_numisinf(nb) && luai_numisinf(nc)) {
             luaG_runerror(L, "Infinity divided by infinity");
         }
     }

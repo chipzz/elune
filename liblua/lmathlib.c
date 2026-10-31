@@ -7,17 +7,11 @@
 #include "lua.h"
 
 #include "lauxlib.h"
+#include "llimits.h"
 #include "lualib.h"
 
-#include <float.h>
 #include <math.h>
-#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-
-#if DBL_MANT_DIG != 53 || DBL_MAX_EXP != 1024
-#error "math predicates require IEEE-754 binary64 numbers"
-#endif
 
 #undef PI
 #define PI (3.14159265358979323846)
@@ -28,31 +22,18 @@ static int math_abs (lua_State *L) {
     return 1;
 }
 
-static uint64_t aux_dtoi64 (lua_Number value) {
-    uint64_t bits;
-    memcpy(&bits, &value, sizeof(bits));
-    return bits;
-}
-
 static int math_isfinite (lua_State *L) {
-    const uint64_t exponent = aux_dtoi64(luaL_checknumber(L, 1)) & UINT64_C(0x7ff0000000000000);
-    lua_pushboolean(L, exponent != UINT64_C(0x7ff0000000000000));
+    lua_pushboolean(L, luai_numisfinite(luaL_checknumber(L, 1)));
     return 1;
 }
 
 static int math_isinf (lua_State *L) {
-    const uint64_t bits = aux_dtoi64(luaL_checknumber(L, 1));
-    const uint64_t exponent = bits & UINT64_C(0x7ff0000000000000);
-    const uint64_t mantissa = bits & UINT64_C(0x000fffffffffffff);
-    lua_pushboolean(L, exponent == UINT64_C(0x7ff0000000000000) && mantissa == 0);
+    lua_pushboolean(L, luai_numisinf(luaL_checknumber(L, 1)));
     return 1;
 }
 
 static int math_isnan (lua_State *L) {
-    const uint64_t bits = aux_dtoi64(luaL_checknumber(L, 1));
-    const uint64_t exponent = bits & UINT64_C(0x7ff0000000000000);
-    const uint64_t mantissa = bits & UINT64_C(0x000fffffffffffff);
-    lua_pushboolean(L, exponent == UINT64_C(0x7ff0000000000000) && mantissa != 0);
+    lua_pushboolean(L, luai_numisnan(luaL_checknumber(L, 1)));
     return 1;
 }
 
@@ -63,7 +44,9 @@ static int math_clamp (lua_State *L) {
 
     if (value < minimum) {
         value = minimum;
-    } else if (value > maximum) {
+    }
+
+    if (value > maximum) {
         value = maximum;
     }
 
