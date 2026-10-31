@@ -73,7 +73,7 @@ target_sources(
     lfunc.c           lfunc.h
     lgc.c             lgc.h
     llex.c            llex.h
-                      llimits.h
+    llimits.c         llimits.h
     lmanip.c          lmanip.h
     lmem.c            lmem.h
     lobject.c         lobject.h
@@ -106,6 +106,16 @@ target_sources(
     ltablib.c
     linit.c
 )
+
+# Floating point classification needs to be compiled into its own TU with
+# LTO disabled for reasons relating to the preservation of my sanity.
+if(LUA_USE_FAST_MATH)
+  if(LUA_HAS_FFAST_MATH)
+    set_source_files_properties(llimits.c PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-fno-lto")
+  elseif(LUA_HAS_FP_FAST)
+    set_source_files_properties(llimits.c PROPERTIES COMPILE_OPTIONS "/fp:strict;/GL-")
+  endif()
+endif()
 
 if(BUILD_CXX)
   get_property(_liblua_sources TARGET liblua PROPERTY SOURCES)
