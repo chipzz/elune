@@ -9,6 +9,7 @@
 #include "lua.h"
 
 #include "lauxlib.h"
+#include "llimits.h"
 #include "lualib.h"
 
 #define aux_getn(L, n) (luaL_checktype(L, n, LUA_TTABLE), ((int) lua_objlen(L, n)))
@@ -69,6 +70,117 @@ static int table_getn (lua_State *L) {
     return 1;
 }
 
+static int table_contains (lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_pushnil(L);
+    while (lua_next(L, 1)) {
+        if (lua_equal(L, -1, 2)) {
+            lua_pop(L, 2);
+            lua_pushboolean(L, 1);
+            return 1;
+        }
+        lua_pop(L, 1);
+    }
+
+    lua_pushboolean(L, 0);
+    return 1;
+}
+
+static int table_count (lua_State *L) {
+    lua_Integer count = 0;
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_pushnil(L);
+    while (lua_next(L, 1)) {
+        ++count;
+        lua_pop(L, 1);
+    }
+    lua_pushinteger(L, count);
+    return 1;
+}
+
+static int table_create (lua_State *L) {
+    const int arraySize = luaL_checkint(L, 1);
+    const int nodeSize = luaL_optint(L, 2, 0);
+    lua_createtable(L, arraySize, nodeSize);
+    return 1;
+}
+
+static int table_indexof (lua_State *L) {
+    lua_Integer index = 1;
+    luaL_checktype(L, 1, LUA_TTABLE);
+
+    for (;;) {
+        lua_rawgeti(L, 1, index);
+        if (lua_isnil(L, -1)) {
+            lua_pop(L, 1);
+            return 0;
+        }
+        if (lua_equal(L, -1, 2)) {
+            lua_pop(L, 1);
+            lua_pushinteger(L, index);
+            return 1;
+        }
+        lua_pop(L, 1);
+        ++index;
+    }
+}
+
+static int table_keys (lua_State *L) {
+    int count = 0;
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_createtable(L, 0, 0);
+    lua_pushnil(L);
+    while (lua_next(L, 1)) {
+        lua_pop(L, 1);
+        lua_pushvalue(L, -1);
+        lua_rawseti(L, 2, ++count);
+    }
+    return 1;
+}
+
+static int table_getcountinfo (lua_State *L) {
+    lua_Integer numEntries = 0;
+    lua_Integer numPositiveIntegerKeys = 0;
+    lua_Number maxPositiveIntegerKey = 0;
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_pushnil(L);
+    while (lua_next(L, 1)) {
+        ++numEntries;
+        if (lua_type(L, -2) == LUA_TNUMBER) {
+            const lua_Number key = lua_tonumber(L, -2);
+            if (luai_numisfinite(key) && key > 0 && floor(key) == key) {
+                ++numPositiveIntegerKeys;
+                if (key > maxPositiveIntegerKey) {
+                    maxPositiveIntegerKey = key;
+                }
+            }
+        }
+        lua_pop(L, 1);
+    }
+    lua_pushinteger(L, numEntries);
+    lua_pushinteger(L, numPositiveIntegerKeys);
+    lua_pushnumber(L, maxPositiveIntegerKey);
+    return 3;
+}
+
+static int table_values (lua_State *L) {
+    int count = 0;
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_createtable(L, 0, 0);
+    lua_pushnil(L);
+    while (lua_next(L, 1)) {
+        lua_rawseti(L, 2, ++count);
+    }
+    return 1;
+}
+
+static int table_isempty (lua_State *L) {
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_pushnil(L);
+    lua_pushboolean(L, lua_next(L, 1) == 0);
+    return 1;
+}
+
 static int table_setn (lua_State *L) {
     luaL_checktype(L, 1, LUA_TTABLE);
     return luaL_error(L, "'setn' is obsolete");
@@ -115,6 +227,54 @@ static int table_remove (lua_State *L) {
     }
     lua_pushnil(L);
     lua_rawseti(L, 1, e); /* t[e] = nil */
+    return 1;
+}
+
+static int table_removeunordered (lua_State *L) {
+    const int length = aux_getn(L, 1);
+    const int index = luaL_optint(L, 2, length);
+
+    if (index < 1 || index > length) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_rawgeti(L, 1, index);
+    if (index < length) {
+        lua_rawgeti(L, 1, length);
+        lua_rawseti(L, 1, index);
+    }
+    lua_pushnil(L);
+    lua_rawseti(L, 1, length);
+    return 1;
+}
+
+static int table_removevalue (lua_State *L) {
+    const int length = aux_getn(L, 1);
+    int readIndex;
+    int writeIndex = 1;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    for (readIndex = 1; readIndex <= length; ++readIndex) {
+        lua_rawgeti(L, 1, readIndex);
+        if (lua_equal(L, -1, 2)) {
+            lua_pop(L, 1);
+        } else {
+            if (writeIndex != readIndex) {
+                lua_rawseti(L, 1, writeIndex++);
+            } else {
+                ++writeIndex;
+                lua_pop(L, 1);
+            }
+        }
+    }
+
+    for (readIndex = writeIndex; readIndex <= length; ++readIndex) {
+        lua_pushnil(L);
+        lua_rawseti(L, 1, readIndex);
+    }
+
+    lua_pushinteger(L, length - writeIndex + 1);
     return 1;
 }
 
@@ -320,15 +480,25 @@ static int table_removemulti (lua_State *L) {
 
 static const luaL_Reg tablib_shared[] = {
     { "concat", table_concat },
+    { "contains", table_contains },
+    { "count", table_count },
+    { "create", table_create },
     { "foreach", table_foreach },
     { "foreachi", table_foreachi },
     { "getn", table_getn },
+    { "getcountinfo", table_getcountinfo },
+    { "indexof", table_indexof },
+    { "isempty", table_isempty },
+    { "keys", table_keys },
     { "maxn", table_maxn },
     { "insert", table_insert },
     { "remove", table_remove },
     { "removemulti", table_removemulti },
+    { "removeunordered", table_removeunordered },
+    { "removevalue", table_removevalue },
     { "setn", table_setn },
     { "sort", table_sort },
+    { "values", table_values },
     { "wipe", table_wipe },
     /* clang-format off */
     { NULL, NULL },

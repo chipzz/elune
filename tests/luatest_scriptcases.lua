@@ -1034,6 +1034,78 @@ case("setfenv: Taint caller environment with C call", function()
     assert(issecure(), "expected to return from 'main' securely")
 end)
 
+case("table.contains: searches all table values", function()
+    assert(table.contains({ first = "alpha", [4] = "beta" }, "beta"))
+    assert(not table.contains({ first = "alpha", [4] = "beta" }, "missing"))
+end)
+
+case("table.count: counts array and non-array entries", function()
+    assert(table.count({ "alpha", "beta", named = "gamma" }) == 3)
+    assert(table.count({}) == 0)
+end)
+
+case("table.create: returns an empty table", function()
+    local created = table.create(3, 2)
+    assert(type(created) == "table")
+    assert(next(created) == nil)
+end)
+
+case("table.indexof: returns the first matching array index", function()
+    assert(table.indexof({ "alpha", "beta", "alpha" }, "alpha") == 1)
+    assert(table.indexof({ "alpha", "beta", "gamma" }, "missing") == nil)
+end)
+
+case("table.keys: returns all keys", function()
+    local keys = table.keys({ alpha = 1, [4] = 2 })
+    local foundAlpha, foundFour
+    for _, key in ipairs(keys) do
+        foundAlpha = foundAlpha or key == "alpha"
+        foundFour = foundFour or key == 4
+    end
+    assert(#keys == 2)
+    assert(foundAlpha and foundFour)
+end)
+
+case("table.getcountinfo: reports entry and positive integer key counts", function()
+    local entries, positiveIntegerKeys, maxPositiveIntegerKey = table.getcountinfo({ [1] = "one", [3] = "three", [2.5] = "fraction", named = "value" })
+    assert(entries == 4)
+    assert(positiveIntegerKeys == 2)
+    assert(maxPositiveIntegerKey == 3)
+
+    entries, positiveIntegerKeys, maxPositiveIntegerKey = table.getcountinfo({})
+    assert(entries == 0 and positiveIntegerKeys == 0 and maxPositiveIntegerKey == 0)
+end)
+
+case("table.values: returns all values", function()
+    local values = table.values({ alpha = "one", [4] = "four" })
+    local foundOne, foundFour
+    for _, value in ipairs(values) do
+        foundOne = foundOne or value == "one"
+        foundFour = foundFour or value == "four"
+    end
+    assert(#values == 2)
+    assert(foundOne and foundFour)
+end)
+
+case("table.isempty: reports whether a table has entries", function()
+    assert(table.isempty({}))
+    assert(not table.isempty({ value = false }))
+end)
+
+case("table.removeunordered: removes an indexed value", function()
+    local values = { "alpha", "beta", "gamma" }
+    assert(table.removeunordered(values, 2) == "beta")
+    assert(#values == 2)
+    assert(values[1] == "alpha" and values[2] == "gamma")
+end)
+
+case("table.removevalue: removes all matching array values", function()
+    local values = { "remove", "keep", "remove", "remove", "last" }
+    assert(table.removevalue(values, "remove") == 3)
+    assert(#values == 2)
+    assert(values[1] == "keep" and values[2] == "last")
+end)
+
 case("math.clamp: clamps to an inclusive range", function()
     assert(math.clamp(5, 0, 10) == 5)
     assert(math.clamp(-5, 0, 10) == 0)
