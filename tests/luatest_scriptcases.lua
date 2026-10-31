@@ -1033,6 +1033,83 @@ case("setfenv: Taint caller environment with C call", function()
     assert(issecure(), "expected to return from 'main' securely")
 end)
 
+case("string.join: validates the separator", function()
+    local ok, err = pcall(string.join)
+    assert(not ok)
+    assert(err == "bad argument #1 to '?' (string expected, got no value)", err)
+
+    ok, err = pcall(string.join, nil, "alpha", "beta")
+    assert(not ok)
+    assert(err == "bad argument #1 to '?' (string expected, got nil)", err)
+
+    assert(string.join(42, "alpha", "beta", "gamma") == "alpha42beta42gamma")
+end)
+
+case("string.join: separator only returns an empty string", function()
+    assert(string.join(",") == "")
+    assert(select("#", string.join(",")) == 1)
+end)
+
+case("string.join: returns one value unchanged", function()
+    assert(string.join(",", 42) == 42)
+    assert(select("#", string.join(",", 42)) == 1)
+    assert(string.join(",", nil) == nil)
+    assert(select("#", string.join(",", nil)) == 1)
+end)
+
+case("string.join: joins strings and numbers", function()
+    assert(string.join(",", "alpha", 42, -7, 1.5, "beta") == "alpha,42,-7,1.5,beta")
+    assert(select("#", string.join(",", "alpha", 42, -7, 1.5, "beta")) == 1)
+    assert(string.join("", 42, -7, 1.5) == "42-71.5")
+end)
+
+case("string.join: stack overflow depends on the separator", function()
+    local pieces = {}
+    for i = 1, 7997 do
+        pieces[i] = ""
+    end
+    assert(string.join("", "", "", "", "", "", "", "", "", "", unpack(pieces)) == "")
+    local ok, err = pcall(function()
+        return string.join(",", "", "", "", "", "", "", "", "", "", unpack(pieces))
+    end)
+    assert(not ok)
+    -- Exact error message differs in-game. Not aiming for 100% compat here.
+    assert(string.find(err, "[Ss]tack overflow"), err)
+end)
+
+case("string.join: trailing nil raises a concatenation error", function()
+    local ok, err = pcall(string.join, ",", "a", nil)
+    assert(not ok)
+    assert(err == "attempt to concatenate a nil value", err)
+end)
+
+case("string.join: preserves null bytes in separators and pieces", function()
+    assert(string.join(",\000/", "alpha", "beta", "gamma") == "alpha,\000/beta,\000/gamma")
+    assert(string.join(",", "alpha\000beta", "gamma\000delta") == "alpha\000beta,gamma\000delta")
+end)
+
+case("string.join: invokes __concat for first and interior pieces", function()
+    local value = setmetatable({}, {
+        __concat = function(left, right)
+            assert(type(left) == "table" and type(right) == "string")
+            return "concatenated"
+        end,
+    })
+    assert(string.join(",", value, "alpha") == "concatenated")
+    assert(string.join(",", "alpha", value, "beta") == "alpha,concatenated")
+end)
+
+case("string.join: invokes __concat for the last piece", function()
+    local value = setmetatable({}, {
+        __concat = function(left, right)
+            assert(type(left) == "string" and type(right) == "table")
+            return "concatenated"
+        end,
+    })
+
+    assert(string.join(",", "alpha", value) == "alphaconcatenated")
+end)
+
 -- This test verifies that the "%d" and "%i" format specifier matches reference
 -- behavior where not supplying a value to be formatted doesn't trigger errors.
 case("string.format: Missing parameters", function()

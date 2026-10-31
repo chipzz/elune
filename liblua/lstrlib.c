@@ -975,24 +975,22 @@ static int str_splittable (lua_State *L) {
 
 static int str_join (lua_State *L) {
     size_t seplen;
-    const char *separator = luaL_checklstring(L, 1, &seplen);
+    luaL_checklstring(L, 1, &seplen);
     const int pieces = lua_gettop(L) - 1;
 
     if (pieces <= 1 || seplen == 0) {
         lua_concat(L, pieces);
     } else {
-        luaL_Buffer buf;
-        luaL_buffinit(L, &buf);
+        luaL_checkstack(L, pieces - 1, "strjoin()");
+        lua_settop(L, pieces * 2);
 
-        for (int i = 1; i <= pieces; ++i) {
-            luaL_addstring(&buf, luaL_checkstring(L, i + 1));
-
-            if (i < pieces) {
-                luaL_addlstring(&buf, separator, seplen);
-            }
+        /* Interleave separators and concatenate right-to-left. */
+        for (int i = pieces; i > 1; --i) {
+            lua_copy(L, i + 1, i * 2);
+            lua_copy(L, 1, i * 2 - 1);
         }
 
-        luaL_pushresult(&buf);
+        lua_concat(L, pieces * 2 - 1);
     }
 
     return 1;
