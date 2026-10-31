@@ -14,6 +14,7 @@
 -- luacheck: globals strsplit strsplittable secureexecuterange
 -- luacheck: globals bit.mod
 -- luacheck: globals date
+-- luacheck: globals dumpobject mapvalues Mixin CreateFromMixins securecallmethod
 
 local case = _G.case
     or function(name, func)
@@ -1104,6 +1105,100 @@ case("table.removevalue: removes all matching array values", function()
     assert(table.removevalue(values, "remove") == 3)
     assert(#values == 2)
     assert(values[1] == "keep" and values[2] == "last")
+end)
+
+case("dumpobject: invokes the __dump metamethod", function()
+    local object = setmetatable({}, {
+        __dump = function(value)
+            assert(type(value) == "table")
+            return "dumped"
+        end,
+    })
+
+    assert(dumpobject(object) == "dumped")
+end)
+
+case("mapvalues: maps each supplied value", function()
+    local first, second = mapvalues(function(value) return value * 2 end, 3, 5)
+    assert(first == 6 and second == 10)
+end)
+
+case("Mixin: copies mixin fields onto and returns the object", function()
+    local object = { original = true }
+    local result = Mixin(object, { first = "one" }, { second = "two" })
+
+    assert(result == object)
+    assert(result.original and result.first == "one" and result.second == "two")
+end)
+
+case("CreateFromMixins: creates an object from mixins", function()
+    local object = CreateFromMixins({ first = "one" }, { second = "two" })
+
+    assert(type(object) == "table")
+    assert(object.first == "one" and object.second == "two")
+end)
+
+case("securecallmethod: invokes a raw method and returns its results", function()
+    local object = {
+        value = 5,
+        add = function(self, amount)
+            return self.value + amount, "done"
+        end,
+    }
+
+    local value, status = securecallmethod(object, "add", 3)
+    assert(value == 8 and status == "done")
+end)
+
+case("securecallmethod: callee does not taint caller", function()
+    local object = {
+        run = function()
+            forceinsecure()
+            assert(not issecure())
+        end,
+    }
+
+    securecallmethod(object, "run")
+    assert(issecure())
+end)
+
+case("securecallmethod: method lookup does not taint caller", function()
+    local object = {}
+    local function run()
+        assert(not issecure())
+    end
+
+    securecall(function()
+        forceinsecure()
+        local method = run
+        object.run = method
+    end)
+
+    assert(not issecurevariable(object, "run"))
+    assert(issecure())
+    securecallmethod(object, "run")
+    assert(issecure())
+end)
+
+case("securecallmethod: ignores methods inherited through __index", function()
+    local object = setmetatable({}, {
+        __index = {
+            run = function()
+                return true
+            end,
+        },
+    })
+
+    local origerrorhandler = geterrorhandler()
+    local lasterror
+
+    seterrorhandler(function(err) lasterror = err end)
+    local resultCount = select("#", securecallmethod(object, "run"))
+    seterrorhandler(origerrorhandler)
+
+    assert(resultCount == 0)
+    assert(type(lasterror) == "string", "expected an error reported through the global error handler")
+    assert(string.find(lasterror, "attempt to call a nil value", 1, true), lasterror)
 end)
 
 case("math.clamp: clamps to an inclusive range", function()

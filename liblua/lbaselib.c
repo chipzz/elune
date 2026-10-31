@@ -540,6 +540,26 @@ static int luaB_securecallfunction (lua_State *L) {
     return lua_gettop(L);
 }
 
+static int luaB_securecallmethod (lua_State *L) {
+    lua_TaintState savedts;
+    lua_savetaint(L, &savedts);
+    luaL_checktype(L, 1, LUA_TTABLE);
+    luaL_checkstring(L, 2);
+
+    lua_pushvalue(L, 2);
+    lua_rawget(L, 1);
+    lua_remove(L, 2);
+    lua_insert(L, 1);
+
+    const int status = lua_pcall(L, lua_gettop(L) - 1, LUA_MULTRET, LUA_ERRORHANDLERINDEX);
+    if (status != 0) {
+        lua_pop(L, 1);
+    }
+    lua_restoretaint(L, &savedts);
+    lua_settoptaint(L, lua_gettop(L), lua_getstacktaint(L));
+    return lua_gettop(L);
+}
+
 static int luaB_secureexecuterange (lua_State *L) {
     int nargs = lua_gettop(L) - 2;
     luaL_checktype(L, 1, LUA_TTABLE);
@@ -726,13 +746,67 @@ static int luaB_scrub (lua_State *L) {
     return argc;
 }
 
+static int luaB_dumpobject (lua_State *L) {
+    lua_settop(L, 1);
+    if (!luaL_callmeta(L, 1, "__dump")) {
+        lua_pushnil(L);
+    }
+    return 1;
+}
+
+static int luaB_mapvalues (lua_State *L) {
+    const int count = lua_gettop(L);
+    luaL_checktype(L, 1, LUA_TFUNCTION);
+    luaL_checkstack(L, 2, "too many values to map");
+
+    for (int i = 2; i <= count; ++i) {
+        lua_pushvalue(L, 1);
+        lua_pushvalue(L, i);
+        lua_call(L, 1, 1);
+        lua_replace(L, i);
+    }
+
+    return count - 1;
+}
+
+static int luaB_mixin (lua_State *L) {
+    const int count = lua_gettop(L);
+    for (int i = 1; i <= count; ++i) {
+        luaL_checktype(L, i, LUA_TTABLE);
+    }
+    luaL_checktype(L, 1, LUA_TTABLE);
+    luaL_checkstack(L, 4, "too many mixin fields");
+
+    for (int i = 2; i <= count; ++i) {
+        lua_pushnil(L);
+        while (lua_next(L, i)) {
+            lua_pushvalue(L, -2);
+            lua_pushvalue(L, -2);
+            lua_settable(L, 1);
+            lua_pop(L, 1);
+        }
+    }
+
+    lua_settop(L, 1);
+    return 1;
+}
+
+static int luaB_createfrommixins (lua_State *L) {
+    lua_newtable(L);
+    lua_insert(L, 1);
+    return luaB_mixin(L);
+}
+
 /**
  * Base library registration
  */
 
 static const luaL_Reg baselib_shared[] = {
+    { "CreateFromMixins", luaB_createfrommixins },
+    { "Mixin", luaB_mixin },
     { "assert", luaB_assert },
     { "collectgarbage", luaB_collectgarbage },
+    { "dumpobject", luaB_dumpobject },
     { "error", luaB_error },
     { "forceinsecure", luaB_forceinsecure },
     { "gcinfo", luaB_gcinfo },
@@ -743,6 +817,7 @@ static const luaL_Reg baselib_shared[] = {
     { "issecure", luaB_issecure },
     { "issecurevariable", luaB_issecurevariable },
     { "loadstring_untainted", luaB_loadstringuntainted },
+    { "mapvalues", luaB_mapvalues },
     { "next", luaB_next },
     { "pcall", luaB_pcall },
     { "pcallwithenv", luaB_pcallwithenv },
@@ -753,6 +828,7 @@ static const luaL_Reg baselib_shared[] = {
     { "scrub", luaB_scrub },
     { "securecall", luaB_securecall },
     { "securecallfunction", luaB_securecallfunction },
+    { "securecallmethod", luaB_securecallmethod },
     { "secureexecuterange", luaB_secureexecuterange },
     { "select", luaB_select },
     { "seterrorhandler", luaB_seterrorhandler },
