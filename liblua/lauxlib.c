@@ -924,6 +924,95 @@ static int f_insecuredelegate (lua_State *L) {
     return lua_gettop(L);
 }
 
+typedef struct SecureCopyState {
+    int source;
+    int memo;
+    luaL_SecureCopyOptions options;
+    lua_TaintState taint;
+} SecureCopyState;
+
+static void aux_securecopyvalue (lua_State *L, int idx, int depth, SecureCopyState *state) {
+    luaL_checkstack(L, 8, "secure copy traversal stack overflow");
+    idx = lua_absindex(L, idx);
+    lua_restoretaint(L, &state->taint);
+
+    if (lua_istable(L, idx)) {
+        lua_rawgeti(L, idx, 0);
+        const int scriptobject = lua_islightuserdata(L, -1);
+        lua_pop(L, 1);
+        lua_restoretaint(L, &state->taint);
+        if (scriptobject) {
+            if (!state->options.permitScriptObjects) {
+                luaL_error(L, "attempted to deep copy a script object");
+            }
+            lua_pushvalue(L, idx);
+        } else {
+            if (depth >= state->options.maxTraversalDepth) {
+                luaL_error(L, "attempted to deep copy a table exceeding the maximum traversal depth of %d",
+                           state->options.maxTraversalDepth);
+            }
+            lua_pushvalue(L, idx);
+            lua_rawget(L, state->memo);
+            lua_restoretaint(L, &state->taint);
+            if (lua_isnil(L, -1)) {
+                lua_pop(L, 1);
+                lua_newtable(L);
+                const int copy = lua_gettop(L);
+                lua_setobjecttaint(L, copy, state->taint.stacktaint);
+                lua_pushvalue(L, idx);
+                lua_pushvalue(L, copy);
+                lua_restoretaint(L, &state->taint);
+                lua_rawset(L, state->memo);
+
+                lua_pushnil(L);
+                while (lua_next(L, idx)) {
+                    const int key = lua_gettop(L) - 1;
+                    const int value = lua_gettop(L);
+                    aux_securecopyvalue(L, key, depth + 1, state);
+                    aux_securecopyvalue(L, value, depth + 1, state);
+                    lua_restoretaint(L, &state->taint);
+                    lua_rawset(L, copy);
+                    lua_pop(L, 1);
+                    lua_restoretaint(L, &state->taint);
+                }
+            }
+        }
+    } else if (lua_isfunction(L, idx) && state->options.wrapUntrustedFunctions && lua_getvaluetaint(L, idx)) {
+        lua_pushvalue(L, idx);
+        luaL_createdelegate(L);
+        lua_restoretaint(L, &state->taint);
+        lua_setobjecttaint(L, -1, lua_getstacktaint(L));
+    } else {
+        lua_pushvalue(L, idx);
+    }
+
+    lua_restoretaint(L, &state->taint);
+    lua_setvaluetaint(L, -1, state->taint.stacktaint);
+}
+
+static void aux_securecopy (lua_State *L, void *ud) {
+    SecureCopyState *state = (SecureCopyState *) ud;
+    luaL_checkstack(L, 1, "secure copy traversal stack overflow");
+    lua_newtable(L);
+    state->memo = lua_gettop(L);
+    aux_securecopyvalue(L, state->source, 0, state);
+    lua_remove(L, state->memo);
+    lua_restoretaint(L, &state->taint);
+}
+
+LUALIB_API void luaL_securecopy (lua_State *L, int idx, const luaL_SecureCopyOptions *options) {
+    static const luaL_SecureCopyOptions defaults = { 100, 1, 0 };
+    SecureCopyState state;
+    state.source = lua_absindex(L, idx);
+    state.options = options ? *options : defaults;
+    lua_savetaint(L, &state.taint);
+    if (state.options.maxTraversalDepth < 0) {
+        luaL_error(L, "maximum traversal depth must not be negative");
+    }
+    luaL_checkany(L, idx);
+    lua_protecttaint(L, aux_securecopy, &state);
+}
+
 LUALIB_API void luaL_createdelegate (lua_State *L) {
     lua_pushcclosure(L, &f_insecuredelegate, 1);
 }

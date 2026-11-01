@@ -161,6 +161,21 @@ LUALIB_API int luaL_securepcall (lua_State *L, int nargs, int nresults, int errf
 LUALIB_API int luaL_securecpcall (lua_State *L, lua_CFunction func, void *ud);
 LUALIB_API void luaL_secureforeach (lua_State *L, int idx, int nargs, int errfunc);
 
+typedef struct luaL_SecureCopyOptions {
+    int maxTraversalDepth; /* Table depth limit; the root counts as one. */
+    int wrapUntrustedFunctions; /* Wrap tainted function values per occurrence, capturing their value taint. */
+    int permitScriptObjects; /* Preserve opaque script-object references instead of raising an error. */
+} luaL_SecureCopyOptions;
+
+/* Push one graph-preserving copy of idx, retaining the source and other stack
+ * values. Copied values receive entry taint; traversal errors propagate
+ * without changing the caller's taint state.
+ *
+ * Depth is checked before memo lookup. Opaque script objects do not consume
+ * depth. Script objects are tables with a light userdata value at raw key 0.
+ * Function wrappers propagate call taint and preserve result taint normally. */
+LUALIB_API void luaL_securecopy (lua_State *L, int idx, const luaL_SecureCopyOptions *options);
+
 LUALIB_API void luaL_createdelegate (lua_State *L);
 LUALIB_API void luaL_createsecuredelegate (lua_State *L);
 LUALIB_API void luaL_createsecurehook (lua_State *L);

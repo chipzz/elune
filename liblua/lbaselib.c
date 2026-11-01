@@ -10,6 +10,8 @@
 #include "lualib.h"
 
 #include <ctype.h>
+#include <limits.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -568,6 +570,33 @@ static int luaB_secureexecuterange (lua_State *L) {
     return 0;
 }
 
+static int luaB_securecopy (lua_State *L) {
+    luaL_SecureCopyOptions options = { 100, 1, 0 };
+    lua_settop(L, 2);
+    if (!lua_isnil(L, 2)) {
+        luaL_checktype(L, 2, LUA_TTABLE);
+        lua_getfield(L, 2, "maxTraversalDepth");
+        if (!lua_isnil(L, -1)) {
+            const lua_Number depth = luaL_checknumber(L, -1);
+            luaL_argcheck(L, isfinite(depth) && depth >= 0 && depth <= INT_MAX, 2, "invalid maximum traversal depth");
+            options.maxTraversalDepth = (int) depth;
+        }
+        lua_pop(L, 1);
+        lua_getfield(L, 2, "wrapUntrustedFunctions");
+        if (!lua_isnil(L, -1)) {
+            options.wrapUntrustedFunctions = lua_toboolean(L, -1);
+        }
+        lua_pop(L, 1);
+        lua_getfield(L, 2, "permitScriptObjects");
+        if (!lua_isnil(L, -1)) {
+            options.permitScriptObjects = lua_toboolean(L, -1);
+        }
+        lua_pop(L, 1);
+    }
+    luaL_securecopy(L, 1, &options);
+    return 1;
+}
+
 static int luaB_geterrorhandler (lua_State *L) {
     lua_pushvalue(L, LUA_ERRORHANDLERINDEX);
     lua_getfenv(L, -1);
@@ -829,6 +858,7 @@ static const luaL_Reg baselib_shared[] = {
     { "securecall", luaB_securecall },
     { "securecallfunction", luaB_securecallfunction },
     { "securecallmethod", luaB_securecallmethod },
+    { "securecopy", luaB_securecopy },
     { "secureexecuterange", luaB_secureexecuterange },
     { "select", luaB_select },
     { "seterrorhandler", luaB_seterrorhandler },

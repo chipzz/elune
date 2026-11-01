@@ -16,6 +16,7 @@
 -- luacheck: globals date
 -- luacheck: globals dumpobject mapvalues Mixin CreateFromMixins securecallmethod
 -- luacheck: globals table.freeze table.isfrozen table.count table.wipe
+-- luacheck: globals securecopy
 
 local case = _G.case
     or function(name, func)
@@ -1868,6 +1869,191 @@ case("secureexecuterange: cannot return values", function()
     end
 
     assert(select("#", secureexecuterange({ 1, 2, 3 }, exec) == 0))
+end)
+
+case("securecopy: returns one unchanged primitive value", function()
+    for _, value in ipairs({ false, true, 0, -12.5, "", "hello" }) do
+        assert(select("#", securecopy(value)) == 1, "expected one return for " .. tostring(value))
+        assert(securecopy(value) == value, "expected unchanged primitive " .. tostring(value))
+    end
+end)
+
+case("securecopy: returns one nil for an explicit or omitted value", function()
+    assert(select("#", securecopy(nil)) == 1, "expected one nil return")
+    assert(securecopy(nil) == nil, "expected nil copy")
+    assert(select("#", securecopy()) == 1, "expected one nil return")
+    assert(securecopy() == nil, "expected nil copy")
+end)
+
+case("securecopy: deep-copies array, sparse and named entries independently", function()
+    local source = { "first", [4] = false, nested = { value = 42 } }
+    local copy = securecopy(source)
+    assert(type(copy) == "table" and copy ~= source, "expected a new root table")
+    assert(copy[1] == "first" and copy[2] == nil and copy[4] == false, "expected preserved sparse entries")
+    assert(copy.nested ~= source.nested and copy.nested.value == 42, "expected a new nested table")
+    assert(table.count(copy) == 3 and table.count(copy.nested) == 1, "expected no additional entries")
+    assert(select("#", securecopy(source)) == 1, "expected exactly one table return")
+    copy.nested.value = 99
+    copy[1] = "changed"
+    assert(source.nested.value == 42 and source[1] == "first", "copy writes must not change the source")
+    source.nested.extra = true
+    assert(copy.nested.extra == nil, "source writes must not change the copy")
+end)
+
+case("securecopy: preserves shared tables within each copy, not across calls", function()
+    local shared = { value = 42 }
+    local source = { first = shared, second = shared }
+    local copy = securecopy(source)
+    local other = securecopy(source)
+    assert(copy ~= source and copy.first ~= shared, "expected new tables")
+    assert(copy.first == copy.second, "expected shared table identity")
+    assert(other ~= copy and other.first ~= copy.first, "expected a separate graph per call")
+    copy.first.value = 99
+    assert(copy.second.value == 99 and shared.value == 42 and other.first.value == 42)
+end)
+
+case("securecopy: preserves self and mutual cycles", function()
+    local source = { child = {} }
+    source.self = source
+    source.child.parent = source
+    local copy = securecopy(source)
+    assert(copy ~= source and copy.child ~= source.child, "expected new tables")
+    assert(copy.self == copy, "expected copied self reference")
+    assert(copy.child.parent == copy, "expected copied mutual cycle")
+end)
+
+case("securecopy: copies table keys using the same graph memo as values", function()
+    local key = { value = 42 }
+    local source = { key = key, [key] = key }
+    source[source] = source
+    local copy = securecopy(source)
+    assert(copy.key ~= key and copy.key.value == 42, "expected copied table key")
+    assert(rawget(copy, key) == nil, "expected no original table key")
+    assert(rawget(copy, copy.key) == copy.key, "expected key/value alias to survive")
+    assert(rawget(copy, copy) == copy, "expected root key/value alias to survive")
+    assert(table.count(copy) == 3, "expected all three entries")
+end)
+
+case("securecopy: copies raw entries without source metamethods or metatables", function()
+    local calls = 0
+    local function UnexpectedMetamethod()
+        calls = calls + 1
+        error("securecopy invoked a source metamethod")
+    end
+    local source = setmetatable({ value = 42 }, {
+        __index = UnexpectedMetamethod,
+        __newindex = UnexpectedMetamethod,
+        __eq = UnexpectedMetamethod,
+        __metatable = "protected",
+    })
+    local copy = securecopy(source)
+    assert(calls == 0, "expected no metamethod calls")
+    assert(getmetatable(copy) == nil, "expected no copied metatable")
+    assert(rawget(copy, "value") == 42 and table.count(copy) == 1, "expected only raw entries")
+    copy.extra = true
+    assert(calls == 0 and rawget(source, "extra") == nil, "expected independent ordinary writes")
+    assert(getmetatable(source) == "protected", "expected source metatable to be unchanged")
+end)
+
+case("securecopy: frozen tables produce mutable copies", function()
+    local source = table.freeze({ nested = table.freeze({ value = 42 }) })
+    local copy = securecopy(source)
+    assert(not table.isfrozen(copy) and not table.isfrozen(copy.nested), "expected unfrozen copies")
+    copy.nested.value = 99
+    copy.extra = true
+    assert(source.nested.value == 42 and source.extra == nil, "expected unchanged frozen source")
+end)
+
+case("securecopy: wrappers forward argument and result identity with embedded nils", function()
+    forceinsecure()
+    local calls = 0
+    local value = {}
+    local function Original(...)
+        calls = calls + 1
+        assert(select("#", ...) == 3, "expected all three arguments")
+        local first, second, third = ...
+        assert(rawequal(first, value) and second == nil and third == false, "expected unchanged arguments")
+        return first, nil, third
+    end
+    local copy = securecopy(Original)
+    assert(type(copy) == "function", "expected a callable copy")
+    assert(calls == 0, "copying must not invoke the function")
+    local function CheckReturns(...)
+        assert(select("#", ...) == 3, "expected all three returns")
+        local first, second, third = ...
+        assert(rawequal(first, value) and second == nil and third == false, "expected unchanged returns")
+    end
+    CheckReturns(copy(value, nil, false))
+    CheckReturns(copy(value, nil, false))
+    assert(calls == 2, "expected one call to the original per wrapper invocation")
+end)
+
+case("securecopy: wrappers preserve zero and trailing-nil return arity", function()
+    forceinsecure()
+    local function NoReturns(...)
+        assert(select("#", ...) == 0, "expected zero arguments")
+    end
+    local function TrailingNil(...)
+        assert(select("#", ...) == 2, "expected trailing nil argument to be preserved")
+        local first, second = ...
+        assert(first == 42 and second == nil)
+        return first, nil
+    end
+    assert(select("#", securecopy(NoReturns)()) == 0, "expected zero returns")
+    assert(select("#", securecopy(TrailingNil)(42, nil)) == 2, "expected trailing nil return")
+end)
+
+case("securecopy: wrapper errors propagate with original error identity", function()
+    forceinsecure()
+    local marker = {}
+    local function Throw() error(marker) end
+    local ok, result = pcall(securecopy(Throw))
+    assert(not ok, "expected wrapper error to propagate")
+    assert(rawequal(result, marker), "expected original error object")
+end)
+
+case("securecopy: functions are wrapped separately for each key and value occurrence", function()
+    forceinsecure()
+    local function Original() return 42 end
+    local copy = securecopy({ Original, Original, [Original] = Original })
+    local key
+    for entry in pairs(copy) do
+        if type(entry) == "function" then
+            key = entry
+        end
+    end
+    assert(type(key) == "function" and not rawequal(key, Original), "expected wrapped function key")
+    local wrappers = { copy[1], copy[2], key, copy[key] }
+    for index = 1, 4 do
+        local wrapper = wrappers[index]
+        assert(type(wrapper) == "function" and not rawequal(wrapper, Original), "expected wrapped function")
+        assert(wrapper() == 42, "expected callable wrapper")
+        for other = 1, index - 1 do
+            assert(not rawequal(wrapper, wrappers[other]), "expected separate wrappers per occurrence")
+        end
+    end
+    assert(table.count(copy) == 3 and rawget(copy, Original) == nil)
+end)
+
+case("securecopy: disabling wrapping preserves function identity in keys and values", function()
+    forceinsecure()
+    local function Original() return 42 end
+    local options = { wrapUntrustedFunctions = false }
+    assert(rawequal(securecopy(Original, options), Original), "expected original function when disabled")
+    local copy = securecopy({ first = Original, second = Original, [Original] = Original }, options)
+    assert(rawequal(copy.first, Original) and rawequal(copy.second, Original))
+    assert(rawequal(rawget(copy, Original), Original), "expected original function key and value")
+end)
+
+case("securecopy: preserves ordinary userdata and thread identity", function()
+    local userdata = newproxy(false)
+    local thread = coroutine.create(function() end)
+    for _, value in ipairs({ userdata, thread }) do
+        assert(rawequal(securecopy(value), value), "expected original " .. type(value))
+        local copy = securecopy({ [value] = value })
+        assert(rawequal(rawget(copy, value), value), "expected original key and value")
+    end
+    assert(coroutine.status(thread) == "suspended", "copying must not resume the thread")
 end)
 
 -- This test verifies that hooksecurefunc calls both functions in the expected
