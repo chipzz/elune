@@ -11,6 +11,8 @@
 -- luacheck: globals forceinsecure hooksecurefunc issecure issecurevalue issecurevariable
 -- luacheck: globals loadstring_untainted securecall securecallfunction
 -- luacheck: globals geterrorhandler seterrorhandler
+-- luacheck: globals GetGlobalEnvironment GetCurrentEnvironment
+-- luacheck: globals IsInGlobalEnvironment SwapToGlobalEnvironment
 -- luacheck: globals strsplit strsplittable secureexecuterange
 -- luacheck: globals bit.mod
 -- luacheck: globals date
@@ -65,6 +67,50 @@ case("issecurevalue: Reports false when called insecurely", function()
     end)
 
     assert(result == false, "expected an insecure call to report false")
+end)
+
+case("GetGlobalEnvironment: Returns the thread global environment", function()
+    assert(GetGlobalEnvironment() == getfenv(0), "expected the thread global environment")
+end)
+
+case("GetCurrentEnvironment: Returns the caller environment", function()
+    local expectedEnvironment = {}
+    local getCurrentEnvironment = GetCurrentEnvironment
+    local getEnvironment = setfenv(function()
+        return getCurrentEnvironment()
+    end, expectedEnvironment)
+
+    assert(getEnvironment() == expectedEnvironment, "expected the caller environment")
+end)
+
+case("IsInGlobalEnvironment: Detects the caller environment", function()
+    assert(IsInGlobalEnvironment(), "expected the global environment to be detected")
+
+    local isInGlobalEnvironment = IsInGlobalEnvironment
+    local getEnvironmentStatus = setfenv(function()
+        return isInGlobalEnvironment()
+    end, {})
+
+    assert(not getEnvironmentStatus(), "expected a non-global environment to be detected")
+end)
+
+case("SwapToGlobalEnvironment: Swaps the caller environment", function()
+    local swapToGlobalEnvironment = SwapToGlobalEnvironment
+    local getEnvironment = setfenv(function()
+        swapToGlobalEnvironment()
+        return getfenv(1)
+    end, {})
+
+    assert(getEnvironment() == GetGlobalEnvironment(), "expected the caller environment to be global")
+end)
+
+case("SwapToGlobalEnvironment: Rejects a tainted caller", function()
+    local success = securecall(function()
+        forceinsecure()
+        return pcall(SwapToGlobalEnvironment)
+    end)
+
+    assert(not success, "expected a tainted caller to be rejected")
 end)
 
 -- This test verifies that the MOVE operation correctly results in a tainted

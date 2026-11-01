@@ -117,22 +117,36 @@ static void getfunc (lua_State *L, int opt) {
     }
 }
 
+static void getcallerfunc (lua_State *L, lua_Debug *ar) {
+    if (lua_getstack(L, 1, ar) == 0) {
+        luaL_error(L, "invalid level");
+    }
+    lua_getinfo(L, "f", ar);
+    if (lua_isnil(L, -1)) {
+        luaL_error(L, "no function environment for tail call at level 1");
+    }
+}
+
+static void getfuncenv (lua_State *L, int funcidx) {
+    funcidx = lua_absindex(L, funcidx);
+    if (lua_iscfunction(L, funcidx)) {
+        lua_pushvalue(L, LUA_GLOBALSINDEX);
+    } else {
+        lua_getfenv(L, funcidx);
+    }
+
+    if (luaL_getmetafield(L, -1, "__environment") == 0) {
+        lua_taintstack(L, lua_getobjecttaint(L, funcidx));
+    }
+}
+
 static int luaB_getfenv (lua_State *L) {
     if (!lua_getcompatopt(L, LUA_COMPATGCDEBUG) && !lua_ishookallowed(L)) {
         return 0; /* getfenv calls not allowed in '__gc' execution. */
     }
 
     getfunc(L, 1);
-    if (lua_iscfunction(L, -1)) { /* is a C function? */
-        lua_pushvalue(L, LUA_GLOBALSINDEX); /* return the thread's global env. */
-    } else {
-        lua_getfenv(L, -1);
-    }
-
-    if (luaL_getmetafield(L, -1, "__environment") == 0) {
-        lua_taintstack(L, lua_getobjecttaint(L, -2));
-    }
-
+    getfuncenv(L, -1);
     return 1;
 }
 
@@ -500,6 +514,44 @@ static int luaB_issecurevalue (lua_State *L) {
     return 2;
 }
 
+static int luaB_getglobalenvironment (lua_State *L) {
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    return 1;
+}
+
+static int luaB_getcurrentenvironment (lua_State *L) {
+    lua_Debug ar;
+
+    getcallerfunc(L, &ar);
+    getfuncenv(L, -1);
+    return 1;
+}
+
+static int luaB_isinglobalenvironment (lua_State *L) {
+    lua_Debug ar;
+
+    getcallerfunc(L, &ar);
+    getfuncenv(L, -1);
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    lua_pushboolean(L, lua_equal(L, -1, -2));
+    return 1;
+}
+
+static int luaB_swaptoglobalenvironment (lua_State *L) {
+    lua_Debug ar;
+
+    if (!luaL_issecure(L)) {
+        return luaL_error(L, "cannot modify function environment from a tainted context");
+    }
+
+    getcallerfunc(L, &ar);
+    lua_pushvalue(L, LUA_GLOBALSINDEX);
+    if (lua_setfenv(L, -2) == 0) {
+        return luaL_error(L, "'setfenv' cannot change environment of given object");
+    }
+    return 0;
+}
+
 static int luaB_issecurevariable (lua_State *L) {
     if (lua_tostring(L, 1)) {
         lua_pushvalue(L, LUA_GLOBALSINDEX);
@@ -851,8 +903,11 @@ static const luaL_Reg baselib_shared[] = {
     { "gcinfo", luaB_gcinfo },
     { "geterrorhandler", luaB_geterrorhandler },
     { "getfenv", luaB_getfenv },
+    { "GetCurrentEnvironment", luaB_getcurrentenvironment },
+    { "GetGlobalEnvironment", luaB_getglobalenvironment },
     { "getmetatable", luaB_getmetatable },
     { "hooksecurefunc", luaB_hooksecurefunc },
+    { "IsInGlobalEnvironment", luaB_isinglobalenvironment },
     { "issecure", luaB_issecure },
     { "issecurevalue", luaB_issecurevalue },
     { "issecurevariable", luaB_issecurevariable },
@@ -875,6 +930,7 @@ static const luaL_Reg baselib_shared[] = {
     { "seterrorhandler", luaB_seterrorhandler },
     { "setfenv", luaB_setfenv },
     { "setmetatable", luaB_setmetatable },
+    { "SwapToGlobalEnvironment", luaB_swaptoglobalenvironment },
     { "tonumber", luaB_tonumber },
     { "tostring", luaB_tostring },
     { "type", luaB_type },

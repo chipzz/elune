@@ -4,6 +4,7 @@
 ### Added
 - Added `LUA_DISABLE_LOADLIB` build option to disable the runtime dynamic module loader.
 - Added `CreateFromMixins`, `Mixin`, `dumpobject`, `mapvalues`, and `securecallmethod` base library functions.
+- Added `GetGlobalEnvironment`, `GetCurrentEnvironment`, `IsInGlobalEnvironment`, and `SwapToGlobalEnvironment` base library functions.
 - Added the `issecurevalue(value)` base library function.
 - Added speculative support for `securecopy(value[, options])` and the corresponding `luaL_securecopy` C API.
   - Copies table graphs while preserving shared references and cycles, with options for maximum traversal depth, wrapping untrusted functions, and permitting script objects.
