@@ -3,9 +3,37 @@
 ## [Unreleased]
 ### Added
 - Added `LUA_DISABLE_LOADLIB` build option to disable the runtime dynamic module loader.
+- Added `CreateFromMixins`, `Mixin`, `dumpobject`, `mapvalues`, and `securecallmethod` base library functions.
+- Added speculative support for `securecopy(value[, options])` and the corresponding `luaL_securecopy` C API.
+  - Copies table graphs while preserving shared references and cycles, with options for maximum traversal depth, wrapping untrusted functions, and permitting script objects.
+- Added `table.freeze` and `table.isfrozen`, and the corresponding `lua_freezetable` and `lua_isfrozen` C APIs.
+  - Frozen tables reject direct writes and metatable replacement, but still support assignment through `__newindex`. Insecure code can only freeze tables with matching object taint.
+- Added `table.contains`, `table.count`, `table.create`, `table.getcountinfo`, `table.indexof`, `table.isempty`, `table.keys`, `table.removeunordered`, `table.removevalue`, and `table.values`.
+- Added `math.clamp`, `math.isfinite`, `math.isinf`, `math.isnan`, `math.lerp`, `math.normalize`, `math.remap`, `math.round`, `math.saturate`, `math.sign`, and `math.wrap`.
+- Added `string.contains`, `string.endswith`, `string.ltrim`, `string.rtrim`, and `string.startswith`.
+- Added `string.join`, `string.split`, and `string.trim` to the string library without requiring the compatibility library.
 
 ### Changed
+- Required CMake version is now 3.28.
+- The `string.lower` and `string.upper` functions now use UTF-8 case conversion by default. Set the new `LUA_USE_UTF8_CASE` build option to OFF to retain byte-wise conversion.
+  - UTF-8 conversion discards malformed bytes and stops at the first embedded null character, matching reference behavior.
+  - UTF-8 conversion may not support the same codepoint blocks as the reference client, but it should be accurate enough.
+- The `luaL_loadbuffer` function now skips a leading UTF-8 byte order mark.
+- The `string.join` function now uses Lua concatenation semantics, including `__concat` metamethods and preservation of embedded null characters.
+- The `table.wipe` function now removes entries without invoking `__newindex`.
 - Fixed a correctness issue where the insertion of new table entries did not remove taint from the assigned key.
+- Fixed incorrect handling of original function and hook taint in `hooksecurefunc`.
+- Fixed acceptance of NaN table keys and floating point classification under fast math optimizations.
+- Fixed incorrect `math.huge` values in MSVC builds with `/fp:fast`.
+- Fixed division-by-zero and signed integer overflow in `bit.mod`.
+- Fixed missing argument validation in `tostring`.
+- Fixed handling of empty format strings in `date` to match reference client errors.
+- Fixed trimming of empty strings and embedded null characters in `string.trim`.
+- Fixed unterminated option arrays used by the compatibility and taint mode APIs.
+- Fixed build portability issues with compiler attributes, user presets, and exported dependency targets.
+
+### Removed
+- Removed 32-bit Windows builds from CI and the supplied user presets.
 
 ## [v3.1]
 ### Added
