@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [v4.0]
 ### Added
 - Added `LUA_DISABLE_LOADLIB` build option to disable the runtime dynamic module loader.
 - Added `CreateFromMixins`, `Mixin`, `dumpobject`, `mapvalues`, and `securecallmethod` base library functions.
