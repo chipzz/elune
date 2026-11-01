@@ -17,7 +17,6 @@
 - Added elune-specific `debug.setobjectname(userdata, name)` and `debug.getobjectname(userdata)`, with corresponding `luaL_setobjectname` and `luaL_getobjectname` C APIs.
   - Names must be strings; assigning nil clears a name, and querying an unregistered object returns nil.
   - Names live in a private registry table with weak keys. Full userdata remains collectible; clear light userdata names before reusing native pointers.
-  - This replaces the `__name` metamethod lookup for object-name replacement in error handling and `debuglocals`.
 
 ### Changed
 - Required CMake version is now 3.28.
@@ -40,6 +39,7 @@
 
 ### Removed
 - Removed 32-bit Windows builds from CI and the supplied user presets.
+- The `__name` metamethod is no longer consulted for object-name replacement in error handling and `debuglocals`.
 
 ## [v3.1]
 ### Added
