@@ -14,6 +14,10 @@
 - Added `math.clamp`, `math.isfinite`, `math.isinf`, `math.isnan`, `math.lerp`, `math.normalize`, `math.remap`, `math.round`, `math.saturate`, `math.sign`, and `math.wrap`.
 - Added `string.contains`, `string.endswith`, `string.ltrim`, `string.rtrim`, and `string.startswith`.
 - Added `string.join`, `string.split`, and `string.trim` to the string library without requiring the compatibility library.
+- Added elune-specific `debug.setobjectname(userdata, name)` and `debug.getobjectname(userdata)`, with corresponding `luaL_setobjectname` and `luaL_getobjectname` C APIs.
+  - Names must be strings; assigning nil clears a name, and querying an unregistered object returns nil.
+  - Names live in a private registry table with weak keys. Full userdata remains collectible; clear light userdata names before reusing native pointers.
+  - This replaces the `__name` metamethod lookup for object-name replacement in error handling and `debuglocals`.
 
 ### Changed
 - Required CMake version is now 3.28.

@@ -140,6 +140,16 @@ LUALIB_API void luaL_setfuncs (lua_State *L, const luaL_Reg *l, int nup);
 
 LUALIB_API void luaL_traceback (lua_State *L, lua_State *L1, const char *msg, int level);
 
+/* Object names are stored in a private weak-key table in the registry.
+ * Full userdata keys are collected normally; light userdata names must be
+ * cleared before their native pointer is reused.
+ *
+ * Getting a name pushes one string and returns 1, or returns 0 without
+ * changing the stack. Setting a name consumes the top string or nil (clear).
+ * Both functions require userdata at idx and never invoke metamethods. */
+LUALIB_API int luaL_getobjectname (lua_State *L, int idx);
+LUALIB_API void luaL_setobjectname (lua_State *L, int idx);
+
 /**
  * Security APIs
  */

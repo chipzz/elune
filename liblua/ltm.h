@@ -29,7 +29,6 @@ typedef enum {
     TM_CONCAT,
     TM_CALL,
     TM_ENVIRONMENT,
-    TM_NAME,
     TM_N /* number of elements in the enum */
 } TMS;
 

@@ -248,6 +248,63 @@ LUALIB_API void luaL_openlib (lua_State *L, const char *libname, const luaL_Reg 
     }
 }
 
+static const char KEY_OBJECTNAMES = 'n';
+
+static int aux_getobjectnames (lua_State *L, int create) {
+    lua_pushlightuserdata(L, (void *) &KEY_OBJECTNAMES);
+    lua_rawget(L, LUA_REGISTRYINDEX);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        if (!create) {
+            return 0;
+        }
+        lua_newtable(L);
+        lua_newtable(L);
+        lua_pushliteral(L, "k");
+        lua_setfield(L, -2, "__mode");
+        lua_setmetatable(L, -2);
+        lua_pushlightuserdata(L, (void *) &KEY_OBJECTNAMES);
+        lua_pushvalue(L, -2);
+        lua_rawset(L, LUA_REGISTRYINDEX);
+    } else if (!lua_istable(L, -1)) {
+        luaL_error(L, "invalid object name registry");
+    }
+    return 1;
+}
+
+LUALIB_API int luaL_getobjectname (lua_State *L, int idx) {
+    idx = lua_absindex(L, idx);
+    luaL_argcheck(L, lua_isuserdata(L, idx), idx, "userdata expected");
+    if (!aux_getobjectnames(L, 0)) {
+        return 0;
+    }
+    lua_pushvalue(L, idx);
+    lua_rawget(L, -2);
+    lua_remove(L, -2);
+    if (lua_isnil(L, -1)) {
+        lua_pop(L, 1);
+        return 0;
+    }
+    if (lua_type(L, -1) != LUA_TSTRING) {
+        luaL_error(L, "invalid object name");
+    }
+    return 1;
+}
+
+LUALIB_API void luaL_setobjectname (lua_State *L, int idx) {
+    idx = lua_absindex(L, idx);
+    luaL_argcheck(L, lua_isuserdata(L, idx), idx, "userdata expected");
+    luaL_argcheck(L, lua_isnil(L, -1) || lua_type(L, -1) == LUA_TSTRING, lua_gettop(L), "string or nil expected");
+    if (!aux_getobjectnames(L, !lua_isnil(L, -1))) {
+        lua_pop(L, 1);
+        return;
+    }
+    lua_pushvalue(L, idx);
+    lua_pushvalue(L, -3);
+    lua_rawset(L, -3);
+    lua_pop(L, 2);
+}
+
 LUALIB_API void luaL_register (lua_State *L, const char *libname, const luaL_Reg *l) {
     luaL_openlib(L, libname, l, 0);
 }

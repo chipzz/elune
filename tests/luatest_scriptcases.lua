@@ -19,6 +19,7 @@
 -- luacheck: globals dumpobject mapvalues Mixin CreateFromMixins securecallmethod
 -- luacheck: globals table.freeze table.isfrozen table.count table.wipe
 -- luacheck: globals securecopy
+-- luacheck: globals TestFrameUserdata
 
 local case = _G.case
     or function(name, func)
@@ -2352,10 +2353,7 @@ case("seterrorhandler: replaces '*' source with object names", function()
     if CreateFrame then
         frame = CreateFrame("Frame", "TestFrame")
     else
-        frame = { [0] = newproxy(true) }
-        getmetatable(frame[0]).__name = function()
-            return "TestFrame"
-        end
+        frame = { [0] = assert(TestFrameUserdata) }
     end
 
     seterrorhandler(function(err)
@@ -2375,7 +2373,6 @@ case("seterrorhandler: ignores '*' source if first local is not a named object",
     local lasterror
 
     local fakeframe = { [0] = newproxy(true) }
-    getmetatable(fakeframe[0]).__name = nil
 
     seterrorhandler(function(err)
         lasterror = err

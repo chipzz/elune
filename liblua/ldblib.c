@@ -357,6 +357,20 @@ static int db_getobjectsize (lua_State *L) {
     return 1;
 }
 
+static int db_getobjectname (lua_State *L) {
+    if (!luaL_getobjectname(L, 1)) {
+        lua_pushnil(L);
+    }
+    return 1;
+}
+
+static int db_setobjectname (lua_State *L) {
+    luaL_checkany(L, 2);
+    lua_settop(L, 2);
+    luaL_setobjectname(L, 1);
+    return 0;
+}
+
 static int db_iscfunction (lua_State *L) {
     lua_pushboolean(L, lua_iscfunction(L, 1));
     return 1;
@@ -631,13 +645,8 @@ static void aux_dumpvalue (lua_State *L, const char *name, int idx, int recurse)
 
             lua_rawgeti(L, idx, 0); /* push object userdata */
 
-            if (lua_isuserdata(L, -1) && luaL_callmeta(L, -1, "__name")) {
-                if (lua_isstring(L, -1)) {
-                    lua_pushfstring(L, "%s%s = %s {\n", indent, name, lua_tostring(L, -1));
-                } else {
-                    lua_pushfstring(L, "%s%s = <unnamed> {\n", indent, name);
-                }
-
+            if (lua_isuserdata(L, -1) && luaL_getobjectname(L, -1)) {
+                lua_pushfstring(L, "%s%s = %s {\n", indent, name, lua_tostring(L, -1));
                 lua_replace(L, -2); /* replace object name */
             } else {
                 lua_pushfstring(L, "%s%s = <table> {\n", indent, name);
@@ -763,6 +772,7 @@ static const luaL_Reg dblib_lua[] = {
     { "getinfo", db_getinfo },
     { "getlocal", db_getlocal },
     { "getmetatable", db_getmetatable },
+    { "getobjectname", db_getobjectname },
     { "getobjectsize", db_getobjectsize },
     { "getregistry", db_getregistry },
     { "getscripttimeout", db_getscripttimeout },
@@ -777,6 +787,7 @@ static const luaL_Reg dblib_lua[] = {
     { "sethook", db_sethook },
     { "setlocal", db_setlocal },
     { "setmetatable", db_setmetatable },
+    { "setobjectname", db_setobjectname },
     { "setscripttimeout", db_setscripttimeout },
     { "setupvalue", db_setupvalue },
     { "traceback", db_traceback },

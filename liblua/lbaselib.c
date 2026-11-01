@@ -685,12 +685,8 @@ static const char *f_errorobjname (lua_State *L, int level) {
 
     lua_rawgeti(L, -1, 0);
 
-    if (!lua_isuserdata(L, -1) || !luaL_callmeta(L, -1, "__name")) {
+    if (!lua_isuserdata(L, -1) || !luaL_getobjectname(L, -1)) {
         goto exit;
-    }
-
-    if (!lua_isstring(L, -1)) {
-        lua_pushliteral(L, "<unnamed>");
     }
 
     lua_replace(L, base + 1);

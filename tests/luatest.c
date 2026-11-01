@@ -389,6 +389,35 @@ static void test_securecopy_deep_graph (void) {
     lua_close(L);
 }
 
+static void test_objectname_stack (void) {
+    /* Naming consumes only the name; lookup pushes only registered names.
+     * Negative indices must continue to identify the original userdata. */
+
+    lua_State *L = luatest_newstate();
+    lua_newuserdata(L, 1);
+    TEST_CHECK((luaL_getobjectname(L, -1) == 0));
+    TEST_CHECK((lua_gettop(L) == 1));
+
+    lua_pushnil(L);
+    luaL_setobjectname(L, -2);
+    TEST_CHECK((lua_gettop(L) == 1));
+
+    lua_pushliteral(L, "TestFrame");
+    luaL_setobjectname(L, -2);
+    TEST_CHECK((lua_gettop(L) == 1));
+    TEST_ASSERT((luaL_getobjectname(L, -1) == 1));
+    TEST_CHECK((lua_gettop(L) == 2));
+    TEST_CHECK((strcmp(lua_tostring(L, -1), "TestFrame") == 0));
+
+    lua_pop(L, 1);
+    lua_pushnil(L);
+    luaL_setobjectname(L, -2);
+    TEST_CHECK((luaL_getobjectname(L, -1) == 0));
+    TEST_CHECK((lua_gettop(L) == 1));
+
+    lua_close(L);
+}
+
 /*
 ** Scripted Test Cases
 */
@@ -411,6 +440,13 @@ static int luatest_case (lua_State *L) {
 static void test_scriptcases (void) {
     lua_State *L = luatest_newstate();
     luaL_openlibsx(L, LUALIB_ELUNE);
+
+    /* Register the synthetic frame's userdata before exposing it to Lua.
+     * Setting its name consumes the string, leaving the userdata to publish. */
+    lua_newuserdata(L, 0);
+    lua_pushliteral(L, "TestFrame");
+    luaL_setobjectname(L, -2);
+    lua_setglobal(L, "TestFrameUserdata");
 
     /* Add custom test case registration function to environment. */
     lua_pushcclosure(L, &luatest_case, 0);
@@ -453,11 +489,30 @@ static void test_profilingscriptcases (void) {
     lua_close(L);
 }
 
+static void test_objectnamescriptcases (void) {
+    /* Elune-only naming tests also exercise native pointers as table keys. */
+    lua_State *L = luatest_newstate();
+    luaL_openlibsx(L, LUALIB_ELUNE);
+    luaL_requiref(L, LUA_DBLIBNAME, luaopen_debug, 1);
+    lua_pop(L, 1);
+    lua_pushcfunction(L, luatest_case);
+    lua_setglobal(L, "case");
+    lua_pushlightuserdata(L, L);
+    lua_setglobal(L, "testlightuserdata");
+
+    if (!TEST_CHECK((luaL_dofile(L, "luatest_objectnames.lua") == 0))) {
+        TEST_MSG("%s", (luaL_optstring(L, -1, "<unknown script error>")));
+    }
+    lua_close(L);
+}
+
 /*
 ** Test Case Registration
 */
 
 TEST_LIST = {
+    { "object names: C API stack effects", test_objectname_stack },
+    { "object name script tests", test_objectnamescriptcases },
     { "luaL_securecopy: table visits preserve caller taint independently", test_securecopy_taint_isolation },
     { "luaL_securecopy: wrappers propagate original value and call taint", test_securecopy_function_taint },
     { "luaL_securecopy: trusted functions retain identity", test_securecopy_trusted_function },
