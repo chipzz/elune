@@ -8,7 +8,7 @@
 -- debug APIs that don't exist.
 --
 
--- luacheck: globals forceinsecure hooksecurefunc issecure issecurevariable
+-- luacheck: globals forceinsecure hooksecurefunc issecure issecurevalue issecurevariable
 -- luacheck: globals loadstring_untainted securecall securecallfunction
 -- luacheck: globals geterrorhandler seterrorhandler
 -- luacheck: globals strsplit strsplittable secureexecuterange
@@ -37,6 +37,35 @@ local case = _G.case
             olderrhandler(err)
         end
     end
+
+case("issecurevalue: Reports security and taint source", function()
+    local values = {}
+
+    securecall(function()
+        values.secure = {}
+        forceinsecure()
+        values.tainted = {}
+    end)
+
+    securecall(function()
+        local isSecure, taint = issecurevalue(values.secure)
+        assert(isSecure, "expected a secure value to be reported as secure")
+        assert(taint == nil, "expected a secure value to have no taint source")
+
+        isSecure, taint = issecurevalue(values.tainted)
+        assert(not isSecure, "expected a tainted value to be reported as insecure")
+        assert(type(taint) == "string", "expected a tainted value to include its taint source")
+    end)
+end)
+
+case("issecurevalue: Reports false when called insecurely", function()
+    local result = securecall(function()
+        forceinsecure()
+        return issecurevalue("secure")
+    end)
+
+    assert(result == false, "expected an insecure call to report false")
+end)
 
 -- This test verifies that the MOVE operation correctly results in a tainted
 -- assignment if the context is insecure.

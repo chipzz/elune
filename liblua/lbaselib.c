@@ -490,6 +490,16 @@ static int luaB_issecure (lua_State *L) {
     return 1;
 }
 
+static int luaB_issecurevalue (lua_State *L) {
+    const char *taint;
+
+    luaL_checkany(L, 1);
+    taint = lua_getvaluetaint(L, 1);
+    lua_pushboolean(L, luaL_issecure(L) && taint == NULL);
+    lua_pushstring(L, taint);
+    return 2;
+}
+
 static int luaB_issecurevariable (lua_State *L) {
     if (lua_tostring(L, 1)) {
         lua_pushvalue(L, LUA_GLOBALSINDEX);
@@ -844,6 +854,7 @@ static const luaL_Reg baselib_shared[] = {
     { "getmetatable", luaB_getmetatable },
     { "hooksecurefunc", luaB_hooksecurefunc },
     { "issecure", luaB_issecure },
+    { "issecurevalue", luaB_issecurevalue },
     { "issecurevariable", luaB_issecurevariable },
     { "loadstring_untainted", luaB_loadstringuntainted },
     { "mapvalues", luaB_mapvalues },
